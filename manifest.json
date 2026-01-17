@@ -1,0 +1,11 @@
+﻿{
+    "display_name": "다음 전개 추천",
+    "loading_order": 100,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "User",
+    "version": "1.2.0",
+    "description": "채팅 내용을 바탕으로 다음 전개를 추천해주는 확장 프로그램입니다. 추천 내용은 버튼 형태로 표시되며, 클릭 시 자동으로 복사됩니다."
+}
