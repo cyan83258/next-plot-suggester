@@ -897,10 +897,13 @@ function createSuggestionMessageHtml(suggestions) {
 
 /**
  * 추천 메시지 표시
+ * @param {boolean} silent - true이면 경고 메시지 표시 안함
  */
-async function showSuggestions() {
+async function showSuggestions(silent = false) {
     if (isGenerating) {
-        toastr.warning("이미 생성 중입니다. 잠시 기다려주세요.");
+        if (!silent) {
+            toastr.warning("이미 생성 중입니다. 잠시 기다려주세요.");
+        }
         return;
     }
     
@@ -1104,8 +1107,13 @@ function onNewMessage(messageId) {
     const settings = extension_settings[extensionName];
     
     if (settings.enabled && settings.autoSuggest) {
+        // 이미 생성 중이면 조용히 무시
+        if (isGenerating) {
+            log("Auto-suggest skipped: already generating");
+            return;
+        }
         setTimeout(() => {
-            showSuggestions();
+            showSuggestions(true); // silent=true
         }, 500);
     }
 }
