@@ -60,10 +60,44 @@ const defaultSettings = {
     llmModel: "gpt-5.2",  // 사용할 모델
     apiEndpoint: "",
     apiKey: "",
-    apiModel: ""
+    apiModel: "",
+    // 퀄리티 프롬프트 설정
+    qualityPrompts: {
+        literaryStyle: true,  // 문학적이고 입체적인 스토리
+        eventful: false,  // 흥미로운 사건 발생
+        peaceful: false,  // 잔잔한 일상
+        conflict: false   // 부정적 사고/갈등
+    },
+    customQualityPrompts: []  // 사용자 정의 퀄리티 프롬프트
 };
 
-// 기본 장르 목록 (name은 영어로 프롬프트에 사용, nameKo는 한국어로 UI에 표시)
+// 기본 퀄리티 프롬프트 정의
+const defaultQualityPrompts = {
+    literaryStyle: {
+        id: "literaryStyle",
+        name: "문학적 스타일",
+        nameEn: "Literary Style",
+        prompt: "Write with rich literary prose and vivid imagery. Create multi-dimensional characters with complex emotions, internal conflicts, and nuanced psychological depth. Include sensory details, metaphors, and show rather than tell. Each character should have distinct voice, mannerisms, and emotional responses that reflect their personality and background. Explore subtle emotional undercurrents and character dynamics."
+    },
+    eventful: {
+        id: "eventful",
+        name: "흥미로운 사건",
+        nameEn: "Eventful",
+        prompt: "Introduce an unexpected twist, surprising revelation, or dramatic event that raises the stakes and creates tension. This could be an unexpected visitor, a hidden secret revealed, a sudden crisis, a mysterious discovery, or an opportunity that demands immediate action. The event should logically connect to the existing narrative while opening new dramatic possibilities."
+    },
+    peaceful: {
+        id: "peaceful",
+        name: "잔잔한 일상",
+        nameEn: "Peaceful Daily Life",
+        prompt: "Focus on quiet, intimate moments of everyday life. Emphasize small but meaningful interactions, comfortable silences, domestic routines, and the gentle rhythm of daily existence. Capture the beauty in mundane moments - sharing a meal, casual conversation, peaceful coexistence. Create a warm, cozy atmosphere that deepens character bonds through subtle gestures and shared experiences."
+    },
+    conflict: {
+        id: "conflict",
+        name: "갈등/위기",
+        nameEn: "Conflict/Crisis",
+        prompt: "Introduce tension, disagreement, or a challenging situation that tests the characters. This could be interpersonal conflict, external threat, moral dilemma, misunderstanding, betrayal, or an obstacle that forces difficult choices. Show how characters react under pressure, their flaws and vulnerabilities. Create emotional stakes that demand resolution and character growth."
+    }
+};
 const defaultGenres = [
     { id: "comedy", name: "Comedy", nameKo: "코미디" },
     { id: "slice_of_life", name: "Slice of Life", nameKo: "일상" },
@@ -554,6 +588,36 @@ async function buildPrompt() {
 
     let prompt = "Based on the following context, suggest " + settings.suggestionCount + " possible next plot developments or responses. Each suggestion should be " + settings.sentenceCount + " sentence(s) long.\n\n";
     prompt += "CRITICAL: You MUST write ALL suggestions in " + lang.langName + " (" + lang.langNative + "). Do NOT write in other languages.\n\n";
+    
+    // 퀄리티 프롬프트 추가
+    const qualityPromptParts = [];
+    const qp = settings.qualityPrompts || {};
+    
+    if (qp.literaryStyle && defaultQualityPrompts.literaryStyle) {
+        qualityPromptParts.push(defaultQualityPrompts.literaryStyle.prompt);
+    }
+    if (qp.eventful && defaultQualityPrompts.eventful) {
+        qualityPromptParts.push(defaultQualityPrompts.eventful.prompt);
+    }
+    if (qp.peaceful && defaultQualityPrompts.peaceful) {
+        qualityPromptParts.push(defaultQualityPrompts.peaceful.prompt);
+    }
+    if (qp.conflict && defaultQualityPrompts.conflict) {
+        qualityPromptParts.push(defaultQualityPrompts.conflict.prompt);
+    }
+    
+    // 사용자 정의 퀄리티 프롬프트 추가
+    const customQP = settings.customQualityPrompts || [];
+    customQP.forEach(function(cqp) {
+        if (cqp.enabled && cqp.prompt) {
+            qualityPromptParts.push(cqp.prompt);
+        }
+    });
+    
+    if (qualityPromptParts.length > 0) {
+        prompt += "STYLE AND QUALITY GUIDELINES:\n" + qualityPromptParts.join("\n\n") + "\n\n";
+    }
+    
     prompt += genreInstruction;
     prompt += customInstruction;
     prompt += "=== Context ===\n" + contextParts.join("\n\n") + "\n=== End Context ===\n\n";
@@ -1674,6 +1738,183 @@ function bindPopupEvents() {
             renderPopupCustomGenres();
         });
     }
+
+    // ===== 탭 전환 이벤트 =====
+    const tabBtns = document.querySelectorAll('.nps-tab-btn');
+    tabBtns.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const targetTab = this.dataset.tab;
+            
+            // 모든 탭 버튼 비활성화
+            tabBtns.forEach(function(b) { b.classList.remove('active'); });
+            
+            // 모든 탭 콘텐츠 숨기기
+            document.querySelectorAll('.nps-tab-content').forEach(function(content) {
+                content.classList.remove('active');
+            });
+            
+            // 클릭된 탭 활성화
+            this.classList.add('active');
+            const tabContent = document.getElementById('nps-tab-' + targetTab);
+            if (tabContent) tabContent.classList.add('active');
+        });
+    });
+
+    // ===== 퀄리티 프롬프트 체크박스 이벤트 =====
+    const qpLiterary = document.getElementById('nps-qp-literary');
+    if (qpLiterary) {
+        qpLiterary.addEventListener('change', function() {
+            if (!extension_settings[extensionName].qualityPrompts) {
+                extension_settings[extensionName].qualityPrompts = { ...defaultSettings.qualityPrompts };
+            }
+            extension_settings[extensionName].qualityPrompts.literaryStyle = this.checked;
+            saveSettings();
+        });
+    }
+
+    const qpEventful = document.getElementById('nps-qp-eventful');
+    if (qpEventful) {
+        qpEventful.addEventListener('change', function() {
+            if (!extension_settings[extensionName].qualityPrompts) {
+                extension_settings[extensionName].qualityPrompts = { ...defaultSettings.qualityPrompts };
+            }
+            extension_settings[extensionName].qualityPrompts.eventful = this.checked;
+            saveSettings();
+        });
+    }
+
+    const qpPeaceful = document.getElementById('nps-qp-peaceful');
+    if (qpPeaceful) {
+        qpPeaceful.addEventListener('change', function() {
+            if (!extension_settings[extensionName].qualityPrompts) {
+                extension_settings[extensionName].qualityPrompts = { ...defaultSettings.qualityPrompts };
+            }
+            extension_settings[extensionName].qualityPrompts.peaceful = this.checked;
+            saveSettings();
+        });
+    }
+
+    const qpConflict = document.getElementById('nps-qp-conflict');
+    if (qpConflict) {
+        qpConflict.addEventListener('change', function() {
+            if (!extension_settings[extensionName].qualityPrompts) {
+                extension_settings[extensionName].qualityPrompts = { ...defaultSettings.qualityPrompts };
+            }
+            extension_settings[extensionName].qualityPrompts.conflict = this.checked;
+            saveSettings();
+        });
+    }
+
+    // ===== 커스텀 퀄리티 프롬프트 관리 =====
+    const addQualityBtn = document.getElementById('nps-add-quality-btn');
+    const newQualityPromptContainer = document.getElementById('nps-new-quality-prompt-container');
+    const newQualityNameInput = document.getElementById('nps-new-quality-name');
+    const newQualityPromptInput = document.getElementById('nps-new-quality-prompt');
+    const saveQualityBtn = document.getElementById('nps-save-quality-btn');
+    const cancelQualityBtn = document.getElementById('nps-cancel-quality-btn');
+
+    if (addQualityBtn && newQualityPromptContainer) {
+        addQualityBtn.addEventListener('click', function() {
+            const name = newQualityNameInput ? newQualityNameInput.value.trim() : '';
+            if (!name) {
+                toastr.warning('프롬프트 이름을 입력해주세요.');
+                return;
+            }
+            newQualityPromptContainer.style.display = 'block';
+        });
+    }
+
+    if (saveQualityBtn) {
+        saveQualityBtn.addEventListener('click', function() {
+            const name = newQualityNameInput ? newQualityNameInput.value.trim() : '';
+            const prompt = newQualityPromptInput ? newQualityPromptInput.value.trim() : '';
+
+            if (!name || !prompt) {
+                toastr.warning('이름과 프롬프트 내용을 모두 입력해주세요.');
+                return;
+            }
+
+            const id = 'custom_' + Date.now();
+            const newPrompt = { id: id, name: name, prompt: prompt, enabled: true };
+
+            if (!extension_settings[extensionName].customQualityPrompts) {
+                extension_settings[extensionName].customQualityPrompts = [];
+            }
+            extension_settings[extensionName].customQualityPrompts.push(newPrompt);
+            saveSettings();
+
+            // UI 초기화
+            if (newQualityNameInput) newQualityNameInput.value = '';
+            if (newQualityPromptInput) newQualityPromptInput.value = '';
+            if (newQualityPromptContainer) newQualityPromptContainer.style.display = 'none';
+
+            renderCustomQualityPrompts();
+            toastr.success('커스텀 퀄리티 프롬프트가 추가되었습니다.');
+        });
+    }
+
+    if (cancelQualityBtn) {
+        cancelQualityBtn.addEventListener('click', function() {
+            if (newQualityPromptInput) newQualityPromptInput.value = '';
+            if (newQualityPromptContainer) newQualityPromptContainer.style.display = 'none';
+        });
+    }
+}
+
+/**
+ * 커스텀 퀄리티 프롬프트 목록 렌더링
+ */
+function renderCustomQualityPrompts() {
+    const container = document.getElementById('nps-custom-quality-list');
+    if (!container) return;
+
+    const settings = extension_settings[extensionName];
+    const customPrompts = settings.customQualityPrompts || [];
+
+    container.innerHTML = '';
+
+    if (customPrompts.length === 0) {
+        container.innerHTML = '<p style="color: #888; font-size: 12px;">아직 추가된 커스텀 프롬프트가 없습니다.</p>';
+        return;
+    }
+
+    customPrompts.forEach(function(qp, index) {
+        const item = document.createElement('div');
+        item.className = 'nps-custom-quality-item';
+
+        let itemHtml = '<input type="checkbox" class="nps-custom-qp-checkbox" data-qp-id="' + qp.id + '"' + (qp.enabled ? ' checked' : '') + '>';
+        itemHtml += '<label><strong>' + escapeHtml(qp.name) + '</strong><small>' + escapeHtml(qp.prompt.substring(0, 50)) + '...</small></label>';
+        itemHtml += '<button class="nps-delete-btn" data-qp-index="' + index + '" title="삭제"><i class="fa-solid fa-trash"></i></button>';
+
+        item.innerHTML = itemHtml;
+        container.appendChild(item);
+    });
+
+    // 체크박스 이벤트
+    container.querySelectorAll('.nps-custom-qp-checkbox').forEach(function(cb) {
+        cb.addEventListener('change', function() {
+            const qpId = this.dataset.qpId;
+            const customPrompts = extension_settings[extensionName].customQualityPrompts || [];
+            const qp = customPrompts.find(function(p) { return p.id === qpId; });
+            if (qp) {
+                qp.enabled = this.checked;
+                saveSettings();
+            }
+        });
+    });
+
+    // 삭제 버튼 이벤트
+    container.querySelectorAll('.nps-delete-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const index = parseInt(this.dataset.qpIndex);
+            if (!isNaN(index) && extension_settings[extensionName].customQualityPrompts) {
+                extension_settings[extensionName].customQualityPrompts.splice(index, 1);
+                saveSettings();
+                renderCustomQualityPrompts();
+                toastr.info('커스텀 프롬프트가 삭제되었습니다.');
+            }
+        });
+    });
 }
 
 /**
@@ -1782,6 +2023,16 @@ function createSettingsPopupHtml() {
     // 바디
     html += '<div class="nps-popup-body">';
     
+    // 탭 네비게이션
+    html += '<div class="nps-tabs">';
+    html += '<button class="nps-tab-btn active" data-tab="general"><i class="fa-solid fa-gear"></i> 일반</button>';
+    html += '<button class="nps-tab-btn" data-tab="quality"><i class="fa-solid fa-wand-magic-sparkles"></i> 퀄리티</button>';
+    html += '<button class="nps-tab-btn" data-tab="api"><i class="fa-solid fa-plug"></i> API</button>';
+    html += '</div>';
+    
+    // 일반 탭
+    html += '<div class="nps-tab-content active" id="nps-tab-general">';
+
     // 기본 설정
     html += '<div class="nps-settings-section">';
     html += '<div class="nps-settings-section-title"><i class="fa-solid fa-gear"></i><span>기본 설정</span></div>';
@@ -1890,6 +2141,65 @@ function createSettingsPopupHtml() {
     html += '</div>';
     html += '</div>';
     
+    html += '</div>';  // 일반 탭 끝
+    
+    // 퀄리티 탭
+    html += '<div class="nps-tab-content" id="nps-tab-quality">';
+    
+    // 기본 퀄리티 프롬프트
+    html += '<div class="nps-settings-section">';
+    html += '<div class="nps-settings-section-title"><i class="fa-solid fa-star"></i><span>기본 퀄리티 프롬프트</span></div>';
+    html += '<p class="nps-section-desc">추천 생성 시 적용할 스타일을 선택하세요.</p>';
+    
+    html += '<div class="nps-setting-row">';
+    html += '<label for="nps-qp-literary"><strong>문학적 스타일</strong><br><small>입체적 캐릭터, 풍부한 감정, 섬세한 묘사</small></label>';
+    html += '<input type="checkbox" id="nps-qp-literary" checked>';
+    html += '</div>';
+    
+    html += '<div class="nps-setting-row">';
+    html += '<label for="nps-qp-eventful"><strong>흥미로운 사건</strong><br><small>예상치 못한 전개, 극적 반전, 서스펜스</small></label>';
+    html += '<input type="checkbox" id="nps-qp-eventful">';
+    html += '</div>';
+    
+    html += '<div class="nps-setting-row">';
+    html += '<label for="nps-qp-peaceful"><strong>잔잔한 일상</strong><br><small>따뜻한 교류, 일상적 순간, 평화로운 분위기</small></label>';
+    html += '<input type="checkbox" id="nps-qp-peaceful">';
+    html += '</div>';
+    
+    html += '<div class="nps-setting-row">';
+    html += '<label for="nps-qp-conflict"><strong>갈등/위기</strong><br><small>긴장감, 대립, 도전적 상황, 캐릭터 성장</small></label>';
+    html += '<input type="checkbox" id="nps-qp-conflict">';
+    html += '</div>';
+    
+    html += '</div>';
+    
+    // 사용자 정의 퀄리티 프롬프트
+    html += '<div class="nps-settings-section">';
+    html += '<div class="nps-settings-section-title"><i class="fa-solid fa-plus-circle"></i><span>사용자 정의 프롬프트</span></div>';
+    html += '<p class="nps-section-desc">나만의 스타일 프롬프트를 추가하세요.</p>';
+    
+    html += '<div id="nps-custom-quality-list"></div>';
+    
+    html += '<div class="nps-add-quality-row">';
+    html += '<input type="text" id="nps-new-quality-name" placeholder="프롬프트 이름 (예: 로맨틱 무드)">';
+    html += '<button id="nps-add-quality-btn" class="nps-btn-small"><i class="fa-solid fa-plus"></i></button>';
+    html += '</div>';
+    
+    html += '<div class="nps-quality-prompt-input" style="display:none;" id="nps-new-quality-prompt-container">';
+    html += '<textarea id="nps-new-quality-prompt" placeholder="프롬프트 내용을 영어로 작성하세요 (예: Create romantic tension with meaningful glances...)"></textarea>';
+    html += '<div class="nps-quality-btn-row">';
+    html += '<button id="nps-save-quality-btn" class="nps-btn-primary"><i class="fa-solid fa-save"></i> 저장</button>';
+    html += '<button id="nps-cancel-quality-btn" class="nps-btn-secondary"><i class="fa-solid fa-times"></i> 취소</button>';
+    html += '</div>';
+    html += '</div>';
+    
+    html += '</div>';
+    
+    html += '</div>';  // 퀄리티 탭 끝
+    
+    // API 탭
+    html += '<div class="nps-tab-content" id="nps-tab-api">';
+
     // API 설정
     html += '<div class="nps-settings-section">';
     html += '<div class="nps-settings-section-title"><i class="fa-solid fa-plug"></i><span>API 설정</span></div>';
@@ -1960,15 +2270,18 @@ function createSettingsPopupHtml() {
     html += '</div>';
     html += '</div>';
     
-    html += '</div>'; // popup-body
-    html += '</div>'; // popup-content
-    html += '</div>'; // popup-overlay
-    
+    html += '</div>';  // API 탭 끝
+
+    // 팝업 닫기
+    html += '</div>';  // nps-popup-body
+    html += '</div>';  // nps-popup-content
+    html += '</div>';  // nps-settings-popup
+
     return html;
 }
 
 /**
- * 초기화
+ * 초기화 함수
  */
 async function init() {
     log("Extension loading...");
@@ -2008,3 +2321,5 @@ jQuery(async () => {
 
 // Export
 export { extensionName };
+
+

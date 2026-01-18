@@ -1169,3 +1169,184 @@
         font-size: 10px;
     }
 }
+/* 탭 시스템 */
+.nps-tabs {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 15px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+    padding-bottom: 10px;
+}
+
+.nps-tab-btn {
+    padding: 8px 16px;
+    border: none;
+    background: transparent;
+    color: var(--SmartThemeBodyColor);
+    cursor: pointer;
+    border-radius: 8px 8px 0 0;
+    font-size: 13px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.nps-tab-btn:hover {
+    background: var(--SmartThemeBlurTintColor);
+}
+
+.nps-tab-btn.active {
+    background: var(--SmartThemeBlurTintColor);
+    color: var(--SmartThemeQuoteColor);
+    font-weight: 600;
+}
+
+.nps-tab-content {
+    display: none;
+}
+
+.nps-tab-content.active {
+    display: block;
+}
+
+/* 퀄리티 프롬프트 스타일 */
+.nps-setting-row label small {
+    color: var(--SmartThemeBodyColor);
+    opacity: 0.7;
+    font-weight: normal;
+}
+
+.nps-add-quality-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.nps-add-quality-row input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 6px;
+    background: var(--SmartThemeBlurTintColor);
+    color: var(--SmartThemeBodyColor);
+}
+
+.nps-btn-small {
+    padding: 8px 12px;
+    border: none;
+    background: var(--SmartThemeQuoteColor);
+    color: white;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.nps-btn-small:hover {
+    opacity: 0.8;
+}
+
+.nps-quality-prompt-input {
+    margin-top: 10px;
+    padding: 12px;
+    background: var(--SmartThemeBlurTintColor);
+    border-radius: 8px;
+    border: 1px solid var(--SmartThemeBorderColor);
+}
+
+.nps-quality-prompt-input textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 10px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 6px;
+    background: var(--black50);
+    color: var(--SmartThemeBodyColor);
+    resize: vertical;
+    margin-bottom: 10px;
+}
+
+.nps-quality-btn-row {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.nps-btn-primary {
+    padding: 8px 16px;
+    border: none;
+    background: var(--SmartThemeQuoteColor);
+    color: white;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.nps-btn-secondary {
+    padding: 8px 16px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    background: transparent;
+    color: var(--SmartThemeBodyColor);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.nps-btn-primary:hover, .nps-btn-secondary:hover {
+    opacity: 0.8;
+}
+
+/* 사용자 정의 퀄리티 프롬프트 목록 */
+#nps-custom-quality-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.nps-custom-quality-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--SmartThemeBlurTintColor);
+    border-radius: 8px;
+    border: 1px solid var(--SmartThemeBorderColor);
+}
+
+.nps-custom-quality-item label {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.nps-custom-quality-item label strong {
+    font-size: 13px;
+}
+
+.nps-custom-quality-item label small {
+    font-size: 11px;
+    opacity: 0.7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 300px;
+}
+
+.nps-custom-quality-item .nps-delete-btn {
+    padding: 5px 8px;
+    border: none;
+    background: transparent;
+    color: #ff6b6b;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.nps-custom-quality-item .nps-delete-btn:hover {
+    background: rgba(255, 107, 107, 0.1);
+}
