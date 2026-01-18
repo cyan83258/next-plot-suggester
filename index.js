@@ -39,6 +39,7 @@ const defaultSettings = {
     autoSuggest: false,
     autoPasteToInput: false,  // 입력창에 자동 붙여넣기
     showInputButton: true,  // 입력창 옆 버튼 표시
+    outputLanguage: "ko",  // 추천 언어 (ko, en, ja)
     sentenceCount: 2,
     suggestionCount: 3,
     selectedGenres: [],
@@ -519,25 +520,53 @@ async function buildPrompt() {
         ? "Genre/Style to consider: " + selectedGenreNames + "\n\n"
         : "";
     
-    const customInstruction = settings.customPrompt 
+    const customInstruction = settings.customPrompt
         ? "Additional instructions: " + settings.customPrompt + "\n\n"
         : "";
-    
+
+    // 언어별 설정
+    const langConfig = {
+        ko: {
+            langName: "Korean",
+            langNative: "한국어",
+            first: "첫 번째 추천 - 한국어로 작성",
+            second: "두 번째 추천 - 한국어로 작성",
+            third: "세 번째 추천 - 한국어로 작성"
+        },
+        en: {
+            langName: "English",
+            langNative: "English",
+            first: "First suggestion - Write in English",
+            second: "Second suggestion - Write in English",
+            third: "Third suggestion - Write in English"
+        },
+        ja: {
+            langName: "Japanese",
+            langNative: "日本語",
+            first: "最初の提案 - 日本語で書く",
+            second: "2番目の提案 - 日本語で書く",
+            third: "3番目の提案 - 日本語で書く"
+        }
+    };
+
+    const outputLang = settings.outputLanguage || "ko";
+    const lang = langConfig[outputLang] || langConfig.ko;
+
     let prompt = "Based on the following context, suggest " + settings.suggestionCount + " possible next plot developments or responses. Each suggestion should be " + settings.sentenceCount + " sentence(s) long.\n\n";
-    prompt += "CRITICAL: You MUST write ALL suggestions in Korean (한국어). Do NOT write in English.\n\n";
+    prompt += "CRITICAL: You MUST write ALL suggestions in " + lang.langName + " (" + lang.langNative + "). Do NOT write in other languages.\n\n";
     prompt += genreInstruction;
     prompt += customInstruction;
     prompt += "=== Context ===\n" + contextParts.join("\n\n") + "\n=== End Context ===\n\n";
     prompt += "Please provide exactly " + settings.suggestionCount + " suggestions for what could happen next. Format your response as a numbered list:\n";
-    prompt += "1. [첫 번째 추천 - 한국어로 작성]\n";
-    prompt += "2. [두 번째 추천 - 한국어로 작성]\n";
+    prompt += "1. [" + lang.first + "]\n";
+    prompt += "2. [" + lang.second + "]\n";
     if (settings.suggestionCount > 2) {
-        prompt += "3. [세 번째 추천 - 한국어로 작성]\n";
+        prompt += "3. [" + lang.third + "]\n";
     }
     if (settings.suggestionCount > 3) {
         prompt += "...\n";
     }
-    prompt += "\nEach suggestion should be creative, contextually appropriate, and advance the story in an interesting direction. Remember: Write in Korean only.";
+    prompt += "\nEach suggestion should be creative, contextually appropriate, and advance the story in an interesting direction. Remember: Write in " + lang.langName + " only.";
 
     return prompt;
 }
@@ -1139,6 +1168,7 @@ function updatePopupUIFromSettings() {
     const showInputBtnEl = document.getElementById("nps-popup-show-input-btn");
     const sentenceCountEl = document.getElementById("nps-popup-sentence-count");
     const suggestionCountEl = document.getElementById("nps-popup-suggestion-count");
+    const outputLanguageEl = document.getElementById("nps-popup-output-language");
     const customPromptEl = document.getElementById("nps-popup-custom-prompt");
     const apiTypeEl = document.getElementById("nps-popup-api-type");
     const apiEndpointEl = document.getElementById("nps-popup-api-endpoint");
@@ -1159,6 +1189,7 @@ function updatePopupUIFromSettings() {
     if (showInputBtnEl) showInputBtnEl.checked = settings.showInputButton !== false;
     if (sentenceCountEl) sentenceCountEl.value = settings.sentenceCount;
     if (suggestionCountEl) suggestionCountEl.value = settings.suggestionCount;
+    if (outputLanguageEl) outputLanguageEl.value = settings.outputLanguage || "ko";
     if (customPromptEl) customPromptEl.value = settings.customPrompt || "";
     if (apiTypeEl) apiTypeEl.value = settings.apiType;
     if (apiEndpointEl) apiEndpointEl.value = settings.apiEndpoint || "";
@@ -1559,7 +1590,16 @@ function bindPopupEvents() {
             saveSettings();
         });
     }
-    
+
+    // 추천 언어 설정
+    const outputLanguageEl = document.getElementById("nps-popup-output-language");
+    if (outputLanguageEl) {
+        outputLanguageEl.addEventListener("change", function() {
+            extension_settings[extensionName].outputLanguage = this.value;
+            saveSettings();
+        });
+    }
+
     // LLM Provider 변경
     const llmProviderEl = document.getElementById("nps-popup-llm-provider");
     if (llmProviderEl) {
@@ -1770,7 +1810,16 @@ function createSettingsPopupHtml() {
     html += '<label for="nps-popup-sentence-count">추천 당 문장 수</label>';
     html += '<input type="number" id="nps-popup-sentence-count" min="1" max="10" value="2" class="nps-number-input">';
     html += '</div>';
-    
+
+    html += '<div class="nps-setting-row">';
+    html += '<label for="nps-popup-output-language">추천 언어</label>';
+    html += '<select id="nps-popup-output-language">';
+    html += '<option value="ko">한국어</option>';
+    html += '<option value="en">English</option>';
+    html += '<option value="ja">日本語</option>';
+    html += '</select>';
+    html += '</div>';
+
     html += '<div class="nps-setting-row">';
     html += '<label for="nps-popup-suggestion-count">추천 개수</label>';
     html += '<input type="number" id="nps-popup-suggestion-count" min="1" max="10" value="3" class="nps-number-input">';
