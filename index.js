@@ -38,6 +38,7 @@ const defaultSettings = {
     enabled: true,
     autoSuggest: false,
     autoPasteToInput: false,  // 입력창에 자동 붙여넣기
+    showInputButton: true,  // 입력창 옆 버튼 표시
     sentenceCount: 2,
     suggestionCount: 3,
     selectedGenres: [],
@@ -1135,6 +1136,7 @@ function updatePopupUIFromSettings() {
     const enabledEl = document.getElementById("nps-popup-enabled");
     const autoSuggestEl = document.getElementById("nps-popup-auto-suggest");
     const autoPasteEl = document.getElementById("nps-popup-auto-paste");
+    const showInputBtnEl = document.getElementById("nps-popup-show-input-btn");
     const sentenceCountEl = document.getElementById("nps-popup-sentence-count");
     const suggestionCountEl = document.getElementById("nps-popup-suggestion-count");
     const customPromptEl = document.getElementById("nps-popup-custom-prompt");
@@ -1154,6 +1156,7 @@ function updatePopupUIFromSettings() {
     if (enabledEl) enabledEl.checked = settings.enabled;
     if (autoSuggestEl) autoSuggestEl.checked = settings.autoSuggest;
     if (autoPasteEl) autoPasteEl.checked = settings.autoPasteToInput;
+    if (showInputBtnEl) showInputBtnEl.checked = settings.showInputButton !== false;
     if (sentenceCountEl) sentenceCountEl.value = settings.sentenceCount;
     if (suggestionCountEl) suggestionCountEl.value = settings.suggestionCount;
     if (customPromptEl) customPromptEl.value = settings.customPrompt || "";
@@ -1426,7 +1429,22 @@ function bindPopupEvents() {
             saveSettings();
         });
     }
-    
+
+    // 입력창 버튼 표시 토글
+    const showInputBtnEl = document.getElementById("nps-popup-show-input-btn");
+    if (showInputBtnEl) {
+        showInputBtnEl.addEventListener("change", function() {
+            extension_settings[extensionName].showInputButton = this.checked;
+            if (this.checked) {
+                addChatButton();
+            } else {
+                const existingBtn = document.getElementById("nps-generate-btn");
+                if (existingBtn) existingBtn.remove();
+            }
+            saveSettings();
+        });
+    }
+
     // Input 소스 토글들
     const inputCharEl = document.getElementById("nps-popup-input-char");
     if (inputCharEl) {
@@ -1684,7 +1702,13 @@ function addExtensionMenuButton(retryCount = 0) {
 function addChatButton() {
     const existingBtn = document.getElementById("nps-generate-btn");
     if (existingBtn) existingBtn.remove();
-    
+
+    // 설정에서 버튼 표시 여부 확인
+    const settings = extension_settings[extensionName];
+    if (settings && settings.showInputButton === false) {
+        return;  // 버튼 표시 비활성화시 추가하지 않음
+    }
+
     const rightSendForm = document.getElementById("rightSendForm");
     if (!rightSendForm) return;
     
@@ -1736,8 +1760,13 @@ function createSettingsPopupHtml() {
     html += '<label for="nps-popup-auto-paste">입력창에 자동 붙여넣기</label>';
     html += '<input type="checkbox" id="nps-popup-auto-paste">';
     html += '</div>';
-    
+
     html += '<div class="nps-setting-row">';
+    html += '<label for="nps-popup-show-input-btn">입력창 옆 버튼 표시</label>';
+    html += '<input type="checkbox" id="nps-popup-show-input-btn">';
+    html += '</div>';
+
+    html += '<div class="nps-setting-row">';;
     html += '<label for="nps-popup-sentence-count">추천 당 문장 수</label>';
     html += '<input type="number" id="nps-popup-sentence-count" min="1" max="10" value="2" class="nps-number-input">';
     html += '</div>';
