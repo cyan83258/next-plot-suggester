@@ -1,6 +1,6 @@
-/* 다음 전개 추천 확장 프로그램 스타일 - 파스텔 하늘색/흰색 테마 */
+﻿/* ?ㅼ쓬 ?꾧컻 異붿쿇 ?뺤옣 ?꾨줈洹몃옩 ?ㅽ???- ?뚯뒪???섎뒛???곗깋 ?뚮쭏 */
 
-/* ========== CSS 변수 ========== */
+/* ========== CSS 蹂??========== */
 :root {
     --nps-primary: #7eb8da;
     --nps-primary-hover: #5fa8d3;
@@ -24,7 +24,7 @@
     --nps-radius-lg: 16px;
 }
 
-/* ========== 설정 팝업 오버레이 ========== */
+/* ========== ?ㅼ젙 ?앹뾽 ?ㅻ쾭?덉씠 ========== */
 .nps-popup-overlay {
     display: none;
     position: fixed;
@@ -96,7 +96,7 @@
     flex: 1;
 }
 
-/* ========== 설정 섹션 ========== */
+/* ========== ?ㅼ젙 ?뱀뀡 ========== */
 .nps-settings-section {
     margin-bottom: 24px;
     padding-bottom: 20px;
@@ -134,7 +134,7 @@
     margin: 0 0 12px 0;
 }
 
-/* ========== 설정 행 ========== */
+/* ========== ?ㅼ젙 ??========== */
 .nps-setting-row {
     display: flex;
     align-items: center;
@@ -164,7 +164,7 @@
     color: var(--nps-text-medium);
 }
 
-/* 체크박스 스타일 */
+/* 泥댄겕諛뺤뒪 ?ㅽ???*/
 .nps-setting-row input[type="checkbox"] {
     width: 20px;
     height: 20px;
@@ -172,7 +172,7 @@
     accent-color: var(--nps-primary);
 }
 
-/* 슬라이더 스타일 */
+/* ?щ씪?대뜑 ?ㅽ???*/
 .nps-setting-row input[type="range"] {
     flex: 2;
     max-width: 150px;
@@ -211,7 +211,7 @@
     border-radius: var(--nps-radius-sm);
 }
 
-/* 숫자 입력 스타일 */
+/* ?レ옄 ?낅젰 ?ㅽ???*/
 .nps-number-input {
     width: 70px !important;
     flex: 0 0 auto !important;
@@ -231,7 +231,7 @@
     box-shadow: 0 0 0 3px var(--nps-shadow);
 }
 
-/* 연결 프로필 설정 */
+/* ?곌껐 ?꾨줈???ㅼ젙 */
 .nps-profile-settings {
     display: none;
     margin-top: 12px;
@@ -257,7 +257,7 @@
     min-width: auto;
 }
 
-/* 텍스트 입력 스타일 */
+/* ?띿뒪???낅젰 ?ㅽ???*/
 .nps-setting-row input[type="text"],
 .nps-setting-row input[type="password"],
 .nps-setting-row select,
@@ -290,7 +290,7 @@
     cursor: pointer;
 }
 
-/* ========== 버튼 스타일 ========== */
+/* ========== 踰꾪듉 ?ㅽ???========== */
 .nps-btn {
     padding: 10px 18px;
     border: none;
@@ -330,7 +330,7 @@
     font-size: 12px;
 }
 
-/* ========== 장르 선택 ========== */
+/* ========== ?λⅤ ?좏깮 ========== */
 .nps-genres-container {
     display: flex;
     flex-wrap: wrap;
@@ -373,7 +373,7 @@
     font-weight: 500;
 }
 
-/* 커스텀 장르 */
+/* 而ㅼ뒪? ?λⅤ */
 .nps-custom-genre-item {
     display: flex;
     align-items: center;
@@ -440,7 +440,7 @@
     margin: 0 0 8px 0;
 }
 
-/* 커스텀 API 설정 */
+/* 而ㅼ뒪? API ?ㅼ젙 */
 .nps-custom-api-settings {
     margin-top: 12px;
     padding: 16px;
@@ -449,7 +449,7 @@
     border: 1px solid var(--nps-border);
 }
 
-/* API 테스트 행 */
+/* API ?뚯뒪????*/
 .nps-api-test-row {
     display: flex;
     align-items: center;
@@ -458,7 +458,7 @@
     flex-wrap: wrap;
 }
 
-/* API 연결 상태 */
+/* API ?곌껐 ?곹깭 */
 .nps-api-status {
     display: none;
     align-items: center;
@@ -482,7 +482,7 @@
     background: var(--nps-danger);
 }
 
-/* 사용 방법 */
+/* ?ъ슜 諛⑸쾿 */
 .nps-usage-info {
     font-size: 12px;
     color: var(--nps-text-medium);
@@ -501,7 +501,7 @@
     color: var(--nps-primary);
 }
 
-/* ========== 추천 메시지 스타일 ========== */
+/* ========== 異붿쿇 硫붿떆吏 ?ㅽ???========== */
 .nps-suggestion-mes {
     background: transparent !important;
     padding: 12px !important;
@@ -638,7 +638,7 @@
     color: var(--nps-primary);
 }
 
-/* ========== 로딩 스타일 ========== */
+/* ========== 濡쒕뵫 ?ㅽ???========== */
 .nps-loading-mes {
     background: transparent !important;
     padding: 12px !important;
@@ -673,7 +673,7 @@
     }
 }
 
-/* ========== 채팅 버튼 ========== */
+/* ========== 梨꾪똿 踰꾪듉 ========== */
 #nps-generate-btn {
     display: flex;
     align-items: center;
@@ -697,7 +697,7 @@
     box-shadow: 0 2px 8px var(--nps-shadow);
 }
 
-/* ========== 메뉴 아이템 ========== */
+/* ========== 硫붾돱 ?꾩씠??========== */
 #nps-menu-item,
 #nps-settings-menu-item {
     cursor: pointer;
@@ -713,7 +713,7 @@
     color: var(--nps-primary);
 }
 
-/* ========== 반응형 ========== */
+/* ========== 諛섏쓳??========== */
 @media (max-width: 600px) {
     .nps-popup-content {
         max-height: 90vh;
@@ -750,7 +750,7 @@
     }
 }
 
-/* 필수 배지 */
+/* ?꾩닔 諛곗? */
 .nps-required-badge {
     display: inline-block;
     padding: 2px 8px;
@@ -762,7 +762,10 @@
     margin-left: 8px;
 }
 
-/* Input 소스 설정 스타일 */
+/* Input ?뚯뒪 ?ㅼ젙 ?ㅽ???*/
 #nps-popup-input-chat {
     opacity: 0.7;
 }
+
+
+

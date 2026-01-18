@@ -223,11 +223,14 @@ async function getWorldInfoBefore() {
                 const book = char.data.character_book;
                 if (book.entries && Array.isArray(book.entries)) {
                     for (const entry of book.entries) {
-                        // disable이 true가 아닌 항목만 (활성화된 항목)
-                        if (entry && entry.content && !entry.disable) {
+                        // embedded lorebook은 enabled 필드 사용 (enabled=true면 활성화)
+                        // 또는 disable 필드 사용 (disable=true면 비활성화)
+                        const isEnabled = entry.enabled === true || (entry.enabled !== false && entry.disable !== true);
+                        if (entry && entry.content && isEnabled) {
                             allEntries.push(entry.content);
                         }
                     }
+                    log("Embedded lorebook entries checked:", book.entries.length, "enabled:", allEntries.length);
                 }
             }
         }
@@ -249,12 +252,18 @@ async function getWorldInfoBefore() {
                         try {
                             const worldData = await ctx.loadWorldInfo(worldName);
                             if (worldData && worldData.entries) {
+                                let enabledCount = 0;
+                                let totalCount = 0;
                                 for (const [uid, entry] of Object.entries(worldData.entries)) {
-                                    // disable이 true가 아닌 항목만 (활성화된 항목)
-                                    if (entry && entry.content && !entry.disable) {
+                                    totalCount++;
+                                    // disable===true이면 비활성화된 항목
+                                    const isDisabled = entry.disable === true;
+                                    if (entry && entry.content && !isDisabled) {
                                         allEntries.push(entry.content);
+                                        enabledCount++;
                                     }
                                 }
+                                log("Linked lorebook", worldName, "- total:", totalCount, "enabled:", enabledCount);
                             }
                         } catch (loadErr) {
                             log("Failed to load world info:", loadErr);
@@ -271,12 +280,18 @@ async function getWorldInfoBefore() {
                     try {
                         const worldData = await ctx.loadWorldInfo(worldName);
                         if (worldData && worldData.entries) {
+                            let enabledCount = 0;
+                            let totalCount = 0;
                             for (const [uid, entry] of Object.entries(worldData.entries)) {
-                                // disable이 true가 아닌 항목만 (활성화된 항목)
-                                if (entry && entry.content && !entry.disable && !allEntries.includes(entry.content)) {
+                                totalCount++;
+                                // disable===true이면 비활성화된 항목
+                                const isDisabled = entry.disable === true;
+                                if (entry && entry.content && !isDisabled && !allEntries.includes(entry.content)) {
                                     allEntries.push(entry.content);
+                                    enabledCount++;
                                 }
                             }
+                            log("Selected lorebook", worldName, "- total:", totalCount, "enabled:", enabledCount);
                         }
                     } catch (loadErr) {
                         log("Failed to load selected world info:", worldName, loadErr);
