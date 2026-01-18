@@ -161,15 +161,20 @@ function getAllGenres() {
 }
 
 /**
- * 채팅 히스토리 가져오기
+ * 채팅 히스토리 가져오기 (숨겨진 메시지 제외)
  */
 function getChatHistory(maxMessages = 20) {
     const context = getContext();
     const chatHistory = context.chat || [];
-    
-    const recentMessages = chatHistory.slice(-maxMessages);
-    
-    return recentMessages.map(msg => {
+
+    // 숨겨진 메시지(is_system=true) 제외
+    const visibleMessages = chatHistory.filter(function(msg) {
+        return msg.is_system !== true;
+    });
+
+    const recentMessages = visibleMessages.slice(-maxMessages);
+
+    return recentMessages.map(function(msg) {
         const role = msg.is_user ? "User" : (msg.name || "Character");
         return role + ": " + msg.mes;
     }).join("\n\n");
@@ -2321,5 +2326,6 @@ jQuery(async () => {
 
 // Export
 export { extensionName };
+
 
 
