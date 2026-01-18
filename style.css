@@ -755,6 +755,196 @@
     display: block;
 }
 
+/* ========== 추천 결과 UI ========== */
+.nps-suggestion-mes {
+    background: transparent !important;
+    border: none !important;
+    padding: 12px !important;
+    margin: 8px 0 !important;
+}
+
+.nps-suggestion-container {
+    background: linear-gradient(135deg, #ffffff 0%, #e8f4fa 50%, #f0f8ff 100%);
+    border: 1px solid var(--nps-border);
+    border-radius: var(--nps-radius-lg);
+    box-shadow: 0 4px 20px var(--nps-shadow);
+    overflow: hidden;
+    max-width: 100%;
+}
+
+.nps-suggestion-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    background: linear-gradient(135deg, var(--nps-bg-pastel) 0%, #d5ecf6 100%);
+    border-bottom: 1px solid var(--nps-border);
+}
+
+.nps-suggestion-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--nps-text-dark);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nps-suggestion-title::before {
+    content: "\f0eb";
+    font-family: "Font Awesome 6 Free", "Font Awesome 5 Free", FontAwesome;
+    font-weight: 900;
+    color: var(--nps-primary);
+}
+
+.nps-close-btn {
+    background: none;
+    border: none;
+    font-size: 22px;
+    color: var(--nps-text-light);
+    cursor: pointer;
+    padding: 4px 8px;
+    line-height: 1;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.nps-close-btn:hover {
+    color: var(--nps-danger);
+    background: rgba(232, 144, 144, 0.15);
+}
+
+.nps-suggestion-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.nps-suggestion-btn {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px 18px;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid rgba(208, 228, 240, 0.5);
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s ease;
+    width: 100%;
+}
+
+.nps-suggestion-btn:last-child {
+    border-bottom: none;
+}
+
+.nps-suggestion-btn:hover {
+    background: linear-gradient(135deg, rgba(126, 184, 218, 0.08) 0%, rgba(168, 212, 234, 0.12) 100%);
+}
+
+.nps-suggestion-btn:active {
+    background: linear-gradient(135deg, rgba(126, 184, 218, 0.15) 0%, rgba(168, 212, 234, 0.2) 100%);
+}
+
+.nps-suggestion-number {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--nps-primary) 0%, var(--nps-primary-hover) 100%);
+    color: white;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(126, 184, 218, 0.4);
+}
+
+.nps-suggestion-text {
+    flex: 1;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--nps-text-dark);
+    word-break: keep-all;
+    overflow-wrap: break-word;
+}
+
+.nps-suggestion-footer {
+    display: flex;
+    justify-content: center;
+    padding: 12px 18px;
+    background: linear-gradient(135deg, #f8fbfd 0%, var(--nps-bg-pastel) 100%);
+    border-top: 1px solid var(--nps-border);
+}
+
+.nps-regenerate-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: var(--nps-bg-white);
+    border: 1px solid var(--nps-border);
+    border-radius: 20px;
+    color: var(--nps-text-medium);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.nps-regenerate-btn:hover {
+    background: var(--nps-primary);
+    color: white;
+    border-color: var(--nps-primary);
+    box-shadow: 0 2px 8px var(--nps-shadow);
+}
+
+.nps-regenerate-btn::before {
+    content: "\f2f1";
+    font-family: "Font Awesome 6 Free", "Font Awesome 5 Free", FontAwesome;
+    font-weight: 900;
+}
+
+/* 추천 결과 모바일 반응형 */
+@media screen and (max-width: 768px) {
+    .nps-suggestion-container {
+        border-radius: var(--nps-radius-md);
+    }
+
+    .nps-suggestion-header {
+        padding: 12px 14px;
+    }
+
+    .nps-suggestion-title {
+        font-size: 14px;
+    }
+
+    .nps-suggestion-btn {
+        padding: 14px;
+        gap: 12px;
+    }
+
+    .nps-suggestion-number {
+        width: 24px;
+        height: 24px;
+        font-size: 12px;
+    }
+
+    .nps-suggestion-text {
+        font-size: 13px;
+        line-height: 1.55;
+    }
+
+    .nps-suggestion-footer {
+        padding: 10px 14px;
+    }
+
+    .nps-regenerate-btn {
+        padding: 7px 14px;
+        font-size: 12px;
+    }
+}
+
 /* ========== 로딩 상태 ========== */
 .nps-loading-mes {
     background: transparent !important;

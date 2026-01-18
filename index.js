@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 다음 전개 추천 확장 프로그램 v1.2.0
  * SillyTavern 확장 프로그램
  *
@@ -18,6 +18,7 @@
  */
 
 import { extension_settings, getContext } from "../../../extensions.js";
+import { SECRET_KEYS, secret_state } from "../../../secrets.js";
 import { 
     eventSource, 
     event_types, 
@@ -52,7 +53,9 @@ const defaultSettings = {
         chatHistory: true  // 기본으로 활성화
     },
     apiType: "current",
-    connectionProfile: "",  // SillyTavern 연결 프로필 ID
+    connectionProfile: "",  // SillyTavern 연결 프로필 ID (deprecated)
+    llmProvider: "openai",  // LLM 프로바이더 (openai, claude, google, cohere)
+    llmModel: "gpt-5.2",  // 사용할 모델
     apiEndpoint: "",
     apiKey: "",
     apiModel: ""
@@ -559,97 +562,6 @@ async function sendApiRequest(prompt) {
 }
 
 /**
- * SillyTavern 연결 프로필 목록 가져오기
- */
-function getConnectionProfiles() {
-    try {
-        if (typeof SillyTavern !== "undefined" && typeof SillyTavern.getContext === "function") {
-            const ctx = SillyTavern.getContext();
-            if (ctx && ctx.extensionSettings && ctx.extensionSettings.connectionManager) {
-                return ctx.extensionSettings.connectionManager.profiles || [];
-            }
-        }
-        const ctx = getContext();
-        if (ctx && ctx.extensionSettings && ctx.extensionSettings.connectionManager) {
-            return ctx.extensionSettings.connectionManager.profiles || [];
-        }
-        if (window.extension_settings && window.extension_settings.connectionManager) {
-            return window.extension_settings.connectionManager.profiles || [];
-        }
-        return [];
-    } catch (error) {
-        log("Failed to get connection profiles:", error);
-        return [];
-    }
-}
-
-/**
- * 프로필 ID로 프로필 이름 가져오기
- */
-function getProfileNameById(profileId) {
-    try {
-        const profiles = getConnectionProfiles();
-        const profile = profiles.find(p => p.id === profileId);
-        return profile ? profile.name : null;
-    } catch (e) {
-        return null;
-    }
-}
-
-/**
- * 현재 선택된 프로필 이름 가져오기
- */
-function getCurrentProfileName() {
-    try {
-        if (typeof SillyTavern !== "undefined" && typeof SillyTavern.getContext === "function") {
-            const ctx = SillyTavern.getContext();
-            if (ctx.extensionSettings && ctx.extensionSettings.connectionManager) {
-                const selectedId = ctx.extensionSettings.connectionManager.selectedProfile;
-                if (selectedId) {
-                    const profile = ctx.extensionSettings.connectionManager.profiles.find(p => p.id === selectedId);
-                    return profile ? profile.name : null;
-                }
-            }
-        }
-    } catch (e) {
-        log("Failed to get current profile:", e);
-    }
-    return null;
-}
-
-/**
- * 프로필로 전환
- */
-async function switchToProfile(profileName) {
-    if (!profileName) return false;
-    try {
-        if (typeof SillyTavern !== "undefined" && typeof SillyTavern.getContext === "function") {
-            const ctx = SillyTavern.getContext();
-            if (ctx.executeSlashCommandsWithOptions) {
-                await ctx.executeSlashCommandsWithOptions("/profile " + profileName);
-                log("Switched to profile: " + profileName);
-                await new Promise(function(resolve) { setTimeout(resolve, 1500); });
-                return true;
-            } else if (ctx.executeSlashCommands) {
-                await ctx.executeSlashCommands("/profile " + profileName);
-                log("Switched to profile: " + profileName);
-                await new Promise(function(resolve) { setTimeout(resolve, 1500); });
-                return true;
-            }
-        }
-        if (typeof executeSlashCommands === "function") {
-            await executeSlashCommands("/profile " + profileName);
-            log("Switched to profile: " + profileName);
-            await new Promise(function(resolve) { setTimeout(resolve, 1500); });
-            return true;
-        }
-    } catch (e) {
-        log("Failed to switch profile:", e);
-    }
-    return false;
-}
-
-/**
  * 현재 연결된 API로 생성 (확장 프로그램 전용 프롬프트만 사용)
  */
 async function generateWithCurrentApi(prompt) {
@@ -703,70 +615,102 @@ async function generateWithCurrentApi(prompt) {
 }
 
 /**
- * 선택한 프로필로 전환 후 API 생성
+ * 선택한 LLM Provider로 직접 API 호출 (프로필 전환 없음)
+ * llm-translator 방식: 프로필을 전환하지 않고 직접 API 호출
  */
 async function generateWithProfileApi(prompt) {
     const settings = extension_settings[extensionName];
-    const selectedProfileId = settings.connectionProfile;
-    
-    if (!selectedProfileId) {
-        throw new Error("프로필을 선택해주세요.");
+    const provider = settings.llmProvider || "openai";
+    const model = settings.llmModel || "";
+
+    // 메시지 구성
+    const messages = [{ role: "user", content: prompt }];
+
+    // 기본 파라미터
+    const parameters = {
+        model: model,
+        messages: messages,
+        temperature: 0.8,
+        stream: false,
+        chat_completion_source: provider
+    };
+
+    // API 키 확인
+    let apiKey;
+    switch (provider) {
+        case "openai":
+            apiKey = secret_state[SECRET_KEYS.OPENAI];
+            parameters.chat_completion_source = "openai";
+            break;
+        case "claude":
+            apiKey = secret_state[SECRET_KEYS.CLAUDE];
+            parameters.chat_completion_source = "claude";
+            break;
+        case "google":
+            apiKey = secret_state[SECRET_KEYS.MAKERSUITE];
+            parameters.chat_completion_source = "makersuite";
+            break;
+        case "cohere":
+            apiKey = secret_state[SECRET_KEYS.COHERE];
+            parameters.chat_completion_source = "cohere";
+            break;
+        default:
+            throw new Error("지원하지 않는 프로바이더입니다: " + provider);
     }
-    
-    const targetProfileName = getProfileNameById(selectedProfileId);
-    if (!targetProfileName) {
-        throw new Error("선택한 프로필을 찾을 수 없습니다.");
+
+    if (!apiKey) {
+        throw new Error(provider.toUpperCase() + " API 키가 설정되어 있지 않습니다. SillyTavern 설정에서 API 키를 입력해주세요.");
     }
-    
-    const originalProfile = getCurrentProfileName();
-    let switchedProfile = false;
-    
-    try {
-        // 현재 프로필과 다르면 전환
-        if (originalProfile !== targetProfileName) {
-            log("Switching from profile '" + originalProfile + "' to '" + targetProfileName + "'");
-            switchedProfile = await switchToProfile(targetProfileName);
-            if (!switchedProfile) {
-                throw new Error("프로필 전환에 실패했습니다: " + targetProfileName);
-            }
-        }
-        
-        let result = "";
-        
-        // SillyTavern API 사용
-        if (typeof SillyTavern !== "undefined" && typeof SillyTavern.getContext === "function") {
-            const ctx = SillyTavern.getContext();
-            
-            if (ctx.generateRaw) {
-                result = await ctx.generateRaw({
-                    prompt: prompt,
-                    maxContext: null,
-                    quietToLoud: false,
-                    skipWIAN: true,
-                    skipAN: true
-                });
-            } else if (ctx.generateQuietPrompt) {
-                result = await ctx.generateQuietPrompt(prompt, false, false);
-            }
-        }
-        
-        if (!result && typeof generateQuietPrompt === "function") {
-            result = await generateQuietPrompt(prompt, false, false);
-        }
-        
-        if (!result) {
-            throw new Error("API 응답이 비어있습니다.");
-        }
-        
-        return result;
-        
-    } finally {
-        // 원래 프로필로 복원
-        if (switchedProfile && originalProfile) {
-            log("Restoring original profile: " + originalProfile);
-            await switchToProfile(originalProfile);
-        }
+
+    log("Using provider: " + provider + ", model: " + model);
+
+    const apiUrl = "/api/backends/chat-completions/generate";
+    const headers = {
+        ...getRequestHeaders(),
+        "Content-Type": "application/json"
+    };
+
+    const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify(parameters)
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error("API 요청 실패: " + response.status + " - " + errorText);
     }
+
+    const data = await response.json();
+    let result = "";
+
+    // 프로바이더별 응답 파싱
+    switch (provider) {
+        case "openai":
+            result = data.choices?.[0]?.message?.content?.trim() || "";
+            break;
+        case "claude":
+            result = data.content?.[0]?.text?.trim() || "";
+            break;
+        case "google":
+            result = data.candidates?.[0]?.content?.trim() ||
+                     data.choices?.[0]?.message?.content?.trim() ||
+                     data.text?.trim() || "";
+            break;
+        case "cohere":
+            result = data.message?.content?.[0]?.text?.trim() ||
+                     data.generations?.[0]?.text?.trim() ||
+                     data.text?.trim() || "";
+            break;
+        default:
+            result = data.response || data.text || data.content || "";
+    }
+
+    if (!result) {
+        throw new Error("API 응답이 비어있습니다.");
+    }
+
+    return result;
 }
 
 /**
@@ -1195,7 +1139,6 @@ function updatePopupUIFromSettings() {
     const suggestionCountEl = document.getElementById("nps-popup-suggestion-count");
     const customPromptEl = document.getElementById("nps-popup-custom-prompt");
     const apiTypeEl = document.getElementById("nps-popup-api-type");
-    const connectionProfileEl = document.getElementById("nps-popup-connection-profile");
     const apiEndpointEl = document.getElementById("nps-popup-api-endpoint");
     const apiKeyEl = document.getElementById("nps-popup-api-key");
     const apiModelEl = document.getElementById("nps-popup-api-model");
@@ -1228,43 +1171,74 @@ function updatePopupUIFromSettings() {
     if (inputAuEl) inputAuEl.checked = sources.auWorldBuilder;
     if (inputChatEl) inputChatEl.checked = true; // 항상 체크 (필수)
     
-    // 연결 프로필 드롭다운 업데이트
-    populateConnectionProfiles();
-    if (connectionProfileEl && settings.connectionProfile) {
-        connectionProfileEl.value = settings.connectionProfile;
-    }
+    // LLM Provider/Model 설정
+    const llmProviderEl = document.getElementById("nps-popup-llm-provider");
+    const llmModelEl = document.getElementById("nps-popup-llm-model");
+    const currentProvider = settings.llmProvider || "openai";
+    if (llmProviderEl) llmProviderEl.value = currentProvider;
     
+    // 모델 목록 초기화 (저장된 값이 있으면 유지, 없으면 기본값)
+    updateLlmModelList(currentProvider, false);
+    if (llmModelEl && settings.llmModel) {
+        llmModelEl.value = settings.llmModel;
+    }
+
     updatePopupApiSettingsVisibility();
     renderPopupGenreSelection();
     renderPopupCustomGenres();
 }
 
-/**
- * 연결 프로필 드롭다운 채우기
- */
-function populateConnectionProfiles() {
-    const select = document.getElementById("nps-popup-connection-profile");
-    if (!select) return;
-    
-    const profiles = getConnectionProfiles();
-    select.innerHTML = '<option value="">현재 프로필 유지</option>';
-    
-    profiles.forEach(profile => {
-        const option = document.createElement("option");
-        option.value = profile.id;
-        option.textContent = profile.name || profile.id;
-        select.appendChild(option);
-    });
-    
-    const settings = extension_settings[extensionName];
-    if (settings.connectionProfile) {
-        select.value = settings.connectionProfile;
-    }
-}
 
 /**
  * 팝업 API 설정 가시성 업데이트
  */
+/**
+ * LLM 모델 목록 업데이트 (Provider별 모델 선택지)
+ */
+function updateLlmModelList(provider, setDefault = true) {
+    const modelLists = {
+        "openai": ["gpt-5.2", "gpt-5.1", "gpt-5"],
+        "claude": ["claude-opus-4-5", "claude-sonnet-4-5"],
+        "google": ["gemini-3-flash-preview", "gemini-3-pro-preview", "gemini-2.5-pro"],
+        "cohere": ["command-r-plus", "command-r", "command"]
+    };
+
+    const defaultModels = {
+        "openai": "gpt-5.2",
+        "claude": "claude-sonnet-4-5",
+        "google": "gemini-3-flash-preview",
+        "cohere": "command-r-plus"
+    };
+
+    const modelSelect = document.getElementById("nps-popup-llm-model");
+
+    if (modelSelect) {
+        const currentValue = modelSelect.value;
+        modelSelect.innerHTML = "";
+        const models = modelLists[provider] || [];
+        models.forEach(function(model) {
+            const option = document.createElement("option");
+            option.value = model;
+            option.textContent = model;
+            modelSelect.appendChild(option);
+        });
+
+        if (setDefault) {
+            modelSelect.value = defaultModels[provider] || "";
+            extension_settings[extensionName].llmModel = modelSelect.value;
+        } else {
+            // 기존 값이 목록에 있으면 유지
+            const savedModel = extension_settings[extensionName].llmModel;
+            if (savedModel && models.includes(savedModel)) {
+                modelSelect.value = savedModel;
+            } else if (models.length > 0) {
+                modelSelect.value = models[0];
+                extension_settings[extensionName].llmModel = models[0];
+            }
+        }
+    }
+}
+
 function updatePopupApiSettingsVisibility() {
     const settings = extension_settings[extensionName];
     const apiType = settings.apiType;
@@ -1568,11 +1542,22 @@ function bindPopupEvents() {
         });
     }
     
-    // 연결 프로필 변경
-    const connectionProfileEl = document.getElementById("nps-popup-connection-profile");
-    if (connectionProfileEl) {
-        connectionProfileEl.addEventListener("change", function() {
-            extension_settings[extensionName].connectionProfile = this.value;
+    // LLM Provider 변경
+    const llmProviderEl = document.getElementById("nps-popup-llm-provider");
+    if (llmProviderEl) {
+        llmProviderEl.addEventListener("change", function() {
+            extension_settings[extensionName].llmProvider = this.value;
+            // Provider 변경 시 모델 목록 및 기본값 업데이트
+            updateLlmModelList(this.value);
+            saveSettings();
+        });
+    }
+
+    // LLM Model 변경
+    const llmModelEl = document.getElementById("nps-popup-llm-model");
+    if (llmModelEl) {
+        llmModelEl.addEventListener("change", function() {
+            extension_settings[extensionName].llmModel = this.value;
             saveSettings();
         });
     }
@@ -1835,19 +1820,27 @@ function createSettingsPopupHtml() {
     html += '<label for="nps-popup-api-type">API 연결 방식</label>';
     html += '<select id="nps-popup-api-type">';
     html += '<option value="current">현재 연결된 API 사용</option>';
-    html += '<option value="profile">프로필 선택</option>';
+    html += '<option value="profile">모델 직접 선택</option>';
     html += '<option value="custom">커스텀 API 엔드포인트</option>';
     html += '</select>';
     html += '</div>';
     
-    // 연결 프로필 선택 (프로필 선택 시)
+    // LLM Provider 설정 (프로필 선택 시)
     html += '<div class="nps-profile-settings">';
     html += '<div class="nps-setting-row nps-profile-row">';
-    html += '<label for="nps-popup-connection-profile" class="nps-profile-label">연결 프로필</label>';
-    html += '<select id="nps-popup-connection-profile">';
-    html += '<option value="">프로필을 선택하세요</option>';
+    html += '<label for="nps-popup-llm-provider" class="nps-profile-label">LLM Provider</label>';
+    html += '<select id="nps-popup-llm-provider">';
+    html += '<option value="openai">OpenAI</option>';
+    html += '<option value="claude">Claude (Anthropic)</option>';
+    html += '<option value="google">Google (Gemini)</option>';
+    html += '<option value="cohere">Cohere</option>';
     html += '</select>';
     html += '</div>';
+    html += '<div class="nps-setting-row nps-profile-row">';
+    html += '<label for="nps-popup-llm-model" class="nps-profile-label">모델 이름</label>';
+    html += '<select id="nps-popup-llm-model"></select>';
+    html += '</div>';
+    html += '<p class="nps-hint" style="margin: 5px 0; font-size: 0.85em; color: #888;"> SillyTavern에 해당 Provider의 API 키가 이미 설정되어 있어야 합니다.</p>';
     html += '</div>';
     
     html += '<div class="nps-custom-api-settings">';
