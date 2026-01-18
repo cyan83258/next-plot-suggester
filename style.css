@@ -1,6 +1,6 @@
-/* ???源낆쓱 ??ш낄猷귨쭛???⑤베毓???嶺뚮Ĳ?????ш끽維곩ㅇ??쒑쳸紐꾧덧???????- ???獒????嚥▲꺂痢?????Β?띾룿 ?????*/
+/* 다음 전개 추천 확장 - 파스텔 테마 스타일 v3.0 (모바일 최적화) */
 
-/* ========== CSS ?怨뚮뼚???========== */
+/* ========== CSS 변수 ========== */
 :root {
     --nps-primary: #7eb8da;
     --nps-primary-hover: #5fa8d3;
@@ -22,44 +22,63 @@
     --nps-radius-sm: 8px;
     --nps-radius-md: 12px;
     --nps-radius-lg: 16px;
+    --nps-overlay: rgba(58, 74, 90, 0.5);
 }
 
-/* ========== ???源놁젳 ??獄쏅챷逾?????곷츉???源낇꼧 ========== */
-.nps-popup-overlay {
+/* ========== 팝업 오버레이 (Scenario-Summarizer 방식) ========== */
+#nps-settings-popup {
     display: none;
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    background: rgba(58, 74, 90, 0.5) !important;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 99999;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+#nps-settings-popup.open {
+    display: flex;
+}
+
+/* 오버레이 배경 */
+.nps-popup-overlay-bg {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    background: var(--nps-overlay);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
-    z-index: 99999 !important;
-    justify-content: flex-start !important;
-    align-items: flex-start !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    box-sizing: border-box !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    -webkit-overflow-scrolling: touch !important;
+    z-index: 0;
 }
 
+/* 팝업 컨텐츠 */
 .nps-popup-content {
-    position: relative !important;
-    background: var(--nps-bg-white) !important;
-    border-radius: var(--nps-radius-lg) !important;
-    box-shadow: 0 10px 40px var(--nps-shadow-strong) !important;
-    width: 90% !important;
-    max-width: 550px !important;
-    margin: 20px auto !important;
-    overflow: visible !important;
-    display: flex !important;
-    flex-direction: column !important;
-    flex-shrink: 0 !important;
+    position: relative;
+    z-index: 1;
+    width: 90%;
+    max-width: 550px;
+    height: 85vh;
+    height: 85dvh;
+    max-height: 85vh;
+    max-height: 85dvh;
+    margin: auto;
+    background: var(--nps-bg-white);
+    border: 1px solid var(--nps-border);
+    border-radius: var(--nps-radius-lg);
+    box-shadow: 0 12px 40px var(--nps-shadow-strong);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: env(safe-area-inset-bottom);
 }
 
 .nps-popup-header {
@@ -69,6 +88,7 @@
     padding: 20px 24px;
     background: linear-gradient(135deg, var(--nps-bg-pastel) 0%, var(--nps-bg-light) 100%);
     border-bottom: 1px solid var(--nps-border);
+    flex-shrink: 0;
 }
 
 .nps-popup-header h3 {
@@ -104,9 +124,10 @@
     padding: 20px 24px;
     overflow-y: auto;
     flex: 1;
+    -webkit-overflow-scrolling: touch;
 }
 
-/* ========== ???源놁젳 ??????========== */
+/* ========== 설정 섹션 ========== */
 .nps-settings-section {
     margin-bottom: 24px;
     padding-bottom: 20px;
@@ -144,7 +165,7 @@
     margin: 0 0 12px 0;
 }
 
-/* ========== ???源놁젳 ??========== */
+/* ========== 설정 행 ========== */
 .nps-setting-row {
     display: flex;
     align-items: center;
@@ -160,7 +181,8 @@
 .nps-setting-row label {
     font-size: 13px;
     color: var(--nps-text-dark);
-    flex: 1;
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .nps-setting-row-vertical {
@@ -174,7 +196,7 @@
     color: var(--nps-text-medium);
 }
 
-/* 癲ル슪???띿물筌먯쥙??춯癒?걞獒??????*/
+/* 체크박스 스타일링 */
 .nps-setting-row input[type="checkbox"] {
     width: 20px;
     height: 20px;
@@ -182,7 +204,7 @@
     accent-color: var(--nps-primary);
 }
 
-/* ?????????????*/
+/* 슬라이더 스타일링 */
 .nps-setting-row input[type="range"] {
     flex: 2;
     max-width: 150px;
@@ -202,106 +224,99 @@
     border-radius: 50%;
     background: var(--nps-primary);
     cursor: pointer;
+    border: 2px solid var(--nps-bg-white);
     box-shadow: 0 2px 6px var(--nps-shadow);
-    transition: background 0.2s ease;
 }
 
-.nps-setting-row input[type="range"]::-webkit-slider-thumb:hover {
-    background: var(--nps-primary-hover);
+.nps-setting-row input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--nps-primary);
+    cursor: pointer;
+    border: 2px solid var(--nps-bg-white);
+    box-shadow: 0 2px 6px var(--nps-shadow);
 }
 
-.nps-value-display {
-    min-width: 28px;
+.nps-range-value {
+    min-width: 32px;
     text-align: center;
-    font-weight: 600;
-    font-size: 14px;
-    color: var(--nps-primary);
-    background: var(--nps-bg-pastel);
-    padding: 4px 8px;
-    border-radius: var(--nps-radius-sm);
+    font-size: 13px;
+    color: var(--nps-text-medium);
+    font-weight: 500;
 }
 
-/* ?????????곸죷 ?????*/
-.nps-number-input {
-    width: 70px !important;
-    flex: 0 0 auto !important;
-    text-align: center;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--nps-primary);
-    background: var(--nps-bg-white);
+/* ========== 셀렉트박스 ========== */
+.nps-setting-row select {
+    padding: 8px 12px;
     border: 1px solid var(--nps-border);
     border-radius: var(--nps-radius-sm);
-    padding: 8px 12px;
+    background: var(--nps-bg-white);
+    color: var(--nps-text-dark);
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color 0.2s ease;
 }
 
-.nps-number-input:focus {
+.nps-setting-row select:hover {
+    border-color: var(--nps-border-hover);
+}
+
+.nps-setting-row select:focus {
     outline: none;
     border-color: var(--nps-primary);
-    box-shadow: 0 0 0 3px var(--nps-shadow);
 }
 
-/* ???ㅼ뒦????ш끽維곩ㅇ?????源놁젳 */
-.nps-profile-settings {
-    display: none;
-    margin-top: 12px;
-    padding: 12px 16px;
-    background: var(--nps-bg-light);
-    border-radius: var(--nps-radius-sm);
-}
-
-.nps-profile-settings .nps-setting-row {
-    margin-bottom: 0;
-}
-
-.nps-profile-row {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 12px;
-}
-
-.nps-profile-label {
-    white-space: nowrap;
-    flex-shrink: 0;
-    min-width: auto;
-}
-
-/* ????몄릇??????곸죷 ?????*/
+/* ========== 텍스트 입력 ========== */
 .nps-setting-row input[type="text"],
-.nps-setting-row input[type="password"],
-.nps-setting-row select,
-.nps-setting-row textarea {
-    flex: 2;
+.nps-setting-row input[type="number"],
+.nps-setting-row input[type="url"] {
     padding: 10px 14px;
     border: 1px solid var(--nps-border);
     border-radius: var(--nps-radius-sm);
     background: var(--nps-bg-white);
     color: var(--nps-text-dark);
     font-size: 13px;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color 0.2s ease;
 }
 
-.nps-setting-row input:focus,
-.nps-setting-row select:focus,
+.nps-setting-row input[type="text"]:focus,
+.nps-setting-row input[type="number"]:focus,
+.nps-setting-row input[type="url"]:focus {
+    outline: none;
+    border-color: var(--nps-primary);
+}
+
+/* ========== 텍스트에어리어 ========== */
+.nps-setting-row textarea {
+    padding: 12px 14px;
+    border: 1px solid var(--nps-border);
+    border-radius: var(--nps-radius-sm);
+    background: var(--nps-bg-white);
+    color: var(--nps-text-dark);
+    font-size: 13px;
+    width: 100%;
+    min-height: 80px;
+    resize: vertical;
+    box-sizing: border-box;
+    font-family: inherit;
+    line-height: 1.5;
+    transition: border-color 0.2s ease;
+}
+
 .nps-setting-row textarea:focus {
     outline: none;
     border-color: var(--nps-primary);
-    box-shadow: 0 0 0 3px var(--nps-shadow);
 }
 
-.nps-setting-row textarea {
-    min-height: 70px;
-    resize: vertical;
-    line-height: 1.5;
-}
-
-.nps-setting-row select {
-    cursor: pointer;
-}
-
-/* ========== ?類?????????========== */
+/* ========== 버튼 스타일 ========== */
 .nps-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
     padding: 10px 18px;
     border: none;
     border-radius: var(--nps-radius-sm);
@@ -309,9 +324,6 @@
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s ease;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
 }
 
 .nps-btn-primary {
@@ -326,13 +338,31 @@
 
 .nps-btn-secondary {
     background: var(--nps-bg-pastel);
-    color: var(--nps-text-dark);
+    color: var(--nps-primary);
     border: 1px solid var(--nps-border);
 }
 
 .nps-btn-secondary:hover {
     background: var(--nps-bg-pastel-hover);
-    border-color: var(--nps-primary);
+}
+
+.nps-btn-success {
+    background: var(--nps-success);
+    color: white;
+}
+
+.nps-btn-success:hover {
+    background: #7ab98a;
+    box-shadow: 0 2px 8px rgba(139, 201, 155, 0.3);
+}
+
+.nps-btn-danger {
+    background: var(--nps-danger);
+    color: white;
+}
+
+.nps-btn-danger:hover {
+    background: #d87878;
 }
 
 .nps-btn-small {
@@ -340,7 +370,7 @@
     font-size: 12px;
 }
 
-/* ========== ?潁?????ャ뀕??========== */
+/* ========== 장르 컨테이너 (체크박스 그리드) ========== */
 .nps-genres-container {
     display: flex;
     flex-wrap: wrap;
@@ -349,32 +379,35 @@
 }
 
 .nps-genre-item {
-    display: flex;
+    display: inline-flex;
     align-items: center;
+    padding: 6px 12px;
+    background: var(--nps-bg-light);
+    border: 1px solid var(--nps-border);
+    border-radius: 20px;
+    transition: all 0.2s ease;
+}
+
+.nps-genre-item:hover {
+    background: var(--nps-bg-pastel);
+    border-color: var(--nps-primary-light);
 }
 
 .nps-genre-item label {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 8px 14px;
-    background: var(--nps-bg-light);
-    border: 1px solid var(--nps-border);
-    border-radius: 20px;
     cursor: pointer;
-    transition: all 0.2s ease;
     font-size: 12px;
-    color: var(--nps-text-medium);
-}
-
-.nps-genre-item label:hover {
-    background: var(--nps-bg-pastel);
-    border-color: var(--nps-primary-light);
+    color: var(--nps-text-dark);
+    white-space: nowrap;
 }
 
 .nps-genre-item input[type="checkbox"] {
     width: 14px;
     height: 14px;
+    margin: 0;
+    cursor: pointer;
     accent-color: var(--nps-primary);
 }
 
@@ -383,272 +416,346 @@
     font-weight: 500;
 }
 
-/* ??節뗪콬??? ?潁??*/
-.nps-custom-genre-item {
+/* 사용자 정의 장르 리스트 */
+#nps-popup-custom-genres-list {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 14px;
-    background: var(--nps-bg-light);
-    border: 1px solid var(--nps-border);
-    border-radius: var(--nps-radius-sm);
-    margin-bottom: 8px;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
 }
 
-.nps-custom-genre-item label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    color: var(--nps-text-dark);
-    cursor: pointer;
+#nps-popup-custom-genres-list .nps-genre-item {
+    padding-right: 6px;
 }
 
 .nps-delete-genre-btn {
     background: none;
     border: none;
     color: var(--nps-text-light);
+    font-size: 14px;
     cursor: pointer;
-    padding: 4px 8px;
-    font-size: 16px;
+    padding: 0 4px;
+    margin-left: 4px;
+    line-height: 1;
     transition: color 0.2s ease;
-    border-radius: 4px;
 }
 
 .nps-delete-genre-btn:hover {
     color: var(--nps-danger);
-    background: rgba(232, 144, 144, 0.1);
+}
+
+/* ========== 장르 버튼 ========== */
+.nps-genre-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.nps-genre-btn {
+    padding: 8px 14px;
+    border: 1px solid var(--nps-border);
+    border-radius: 20px;
+    background: var(--nps-bg-white);
+    color: var(--nps-text-medium);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.nps-genre-btn:hover {
+    background: var(--nps-bg-pastel);
+    border-color: var(--nps-primary-light);
+}
+
+.nps-genre-btn.active {
+    background: var(--nps-primary);
+    color: white;
+    border-color: var(--nps-primary);
 }
 
 .nps-add-genre-row {
     display: flex;
     gap: 8px;
     margin-top: 12px;
-    flex-wrap: wrap;
 }
 
 .nps-add-genre-row input {
     flex: 1;
     min-width: 120px;
-    padding: 8px 12px;
-    border: 1px solid var(--nps-border);
-    border-radius: var(--nps-radius-sm);
-    background: var(--nps-bg-white);
-    color: var(--nps-text-dark);
-    font-size: 12px;
 }
 
-.nps-add-genre-row input:focus {
-    outline: none;
-    border-color: var(--nps-primary);
-}
-
-.nps-no-custom-genres {
-    font-size: 12px;
-    color: var(--nps-text-light);
-    font-style: italic;
-    margin: 0 0 8px 0;
-}
-
-/* ??節뗪콬??? API ???源놁젳 */
-.nps-custom-api-settings {
-    margin-top: 12px;
-    padding: 16px;
+/* ========== API 설정 섹션 ========== */
+.nps-api-section {
     background: var(--nps-bg-light);
-    border-radius: var(--nps-radius-sm);
-    border: 1px solid var(--nps-border);
+    border-radius: var(--nps-radius-md);
+    padding: 16px;
+    margin-bottom: 16px;
 }
 
-/* API ???獒????*/
 .nps-api-test-row {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
     margin-top: 12px;
-    flex-wrap: wrap;
 }
 
-/* API ???ㅼ뒦?????ㅺ컼??*/
 .nps-api-status {
-    display: none;
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    color: var(--nps-text-medium);
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
 }
 
-.nps-api-status-indicator {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--nps-text-light);
+.nps-api-status.success {
+    background: rgba(139, 201, 155, 0.2);
+    color: #5a9a6a;
 }
 
-.nps-api-status-indicator.connected {
-    background: var(--nps-success);
+.nps-api-status.error {
+    background: rgba(232, 144, 144, 0.2);
+    color: #c87070;
 }
 
-.nps-api-status-indicator.disconnected {
-    background: var(--nps-danger);
-}
-
-/* ?????袁⑸젻泳?쉬??*/
-.nps-usage-info {
-    font-size: 12px;
-    color: var(--nps-text-medium);
-    line-height: 1.7;
-}
-
-.nps-usage-info p {
-    margin: 0 0 10px 0;
-}
-
-.nps-usage-info p:last-child {
-    margin-bottom: 0;
-}
-
-.nps-usage-info strong {
-    color: var(--nps-primary);
-}
-
-/* ========== ??⑤베毓??癲ル슢??????? ?????========== */
-.nps-suggestion-mes {
-    background: transparent !important;
-    padding: 12px !important;
-    margin: 12px 0 !important;
-}
-
-.nps-suggestion-container {
-    background: linear-gradient(135deg, var(--nps-bg-white) 0%, var(--nps-bg-pastel) 100%);
+/* ========== 토글 스위치 ========== */
+.nps-toggle-switch {
+    position: relative;
+    width: 48px;
+    height: 24px;
+    background: var(--nps-bg-pastel);
     border: 1px solid var(--nps-border);
-    border-radius: var(--nps-radius-lg);
-    padding: 18px;
-    box-shadow: 0 4px 20px var(--nps-shadow);
-}
-
-.nps-suggestion-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--nps-border);
-}
-
-.nps-suggestion-title {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--nps-primary);
-}
-
-.nps-close-btn {
-    background: none;
-    border: none;
-    color: var(--nps-text-light);
-    font-size: 20px;
+    border-radius: 12px;
     cursor: pointer;
-    padding: 0;
-    line-height: 1;
-    transition: color 0.2s ease;
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.nps-toggle-switch.active {
+    background: var(--nps-primary);
+    border-color: var(--nps-primary);
+}
+
+.nps-toggle-switch::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    background: white;
     border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease;
 }
 
-.nps-close-btn:hover {
-    color: var(--nps-danger);
-    background: rgba(232, 144, 144, 0.1);
+.nps-toggle-switch.active::after {
+    transform: translateX(24px);
 }
 
-.nps-suggestion-buttons {
-    display: flex;
-    flex-direction: column;
+/* ========== 입력 소스 체크박스 영역 ========== */
+.nps-input-sources-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     gap: 10px;
 }
 
-.nps-suggestion-btn {
+.nps-input-source-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--nps-bg-light);
+    border: 1px solid var(--nps-border);
+    border-radius: var(--nps-radius-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.nps-input-source-item:hover {
+    background: var(--nps-bg-pastel);
+    border-color: var(--nps-primary-light);
+}
+
+.nps-input-source-item label {
+    font-size: 12px;
+    color: var(--nps-text-dark);
+    cursor: pointer;
+    flex: 1;
+}
+
+/* ========== 안내 박스 ========== */
+.nps-info-box {
     display: flex;
     align-items: flex-start;
-    gap: 14px;
-    padding: 14px 16px;
+    gap: 10px;
+    padding: 12px 14px;
+    background: var(--nps-bg-pastel);
+    border: 1px solid var(--nps-primary-light);
+    border-radius: var(--nps-radius-sm);
+    margin-bottom: 16px;
+}
+
+.nps-info-box i {
+    color: var(--nps-primary);
+    font-size: 14px;
+    margin-top: 2px;
+}
+
+.nps-info-box p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--nps-text-medium);
+    line-height: 1.5;
+}
+
+/* ========== 저장 버튼 영역 ========== */
+.nps-popup-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 24px;
+    background: var(--nps-bg-light);
+    border-top: 1px solid var(--nps-border);
+    flex-shrink: 0;
+}
+
+/* ========== 프리셋 카드 ========== */
+.nps-preset-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
     background: var(--nps-bg-white);
     border: 1px solid var(--nps-border);
-    border-radius: var(--nps-radius-md);
+    border-radius: var(--nps-radius-sm);
+    margin-bottom: 8px;
     cursor: pointer;
-    text-align: left;
     transition: all 0.2s ease;
-    color: var(--nps-text-dark);
-    width: 100%;
-    max-width: 100%;
-    overflow: hidden;
 }
 
-.nps-suggestion-btn:hover {
-    background: var(--nps-bg-pastel-hover);
+.nps-preset-card:hover {
+    border-color: var(--nps-primary-light);
+    box-shadow: 0 2px 8px var(--nps-shadow);
+}
+
+.nps-preset-card.active {
     border-color: var(--nps-primary);
-    transform: translateX(4px);
-    box-shadow: 0 2px 12px var(--nps-shadow);
+    background: var(--nps-bg-pastel);
 }
 
-.nps-suggestion-btn:active {
-    transform: translateX(2px);
+.nps-preset-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--nps-text-dark);
 }
 
-.nps-suggestion-number {
+.nps-preset-desc {
+    font-size: 11px;
+    color: var(--nps-text-light);
+    margin-top: 2px;
+}
+
+.nps-preset-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.nps-preset-action-btn {
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
-    min-width: 28px;
-    background: linear-gradient(135deg, var(--nps-primary) 0%, var(--nps-primary-light) 100%);
-    color: white;
+    background: var(--nps-bg-pastel);
+    border: none;
     border-radius: 50%;
-    font-size: 13px;
-    font-weight: 600;
-    box-shadow: 0 2px 6px var(--nps-shadow);
-}
-
-.nps-suggestion-text {
-    flex: 1;
-    font-size: 13px;
-    line-height: 1.6;
-    color: var(--nps-text-dark);
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    word-break: break-word;
-    white-space: normal;
-}
-
-.nps-suggestion-footer {
-    display: flex;
-    justify-content: center;
-    margin-top: 16px;
-    padding-top: 12px;
-    border-top: 1px solid var(--nps-border);
-}
-
-.nps-regenerate-btn {
-    padding: 10px 24px;
-    background: var(--nps-bg-white);
-    border: 1px solid var(--nps-border);
-    border-radius: 20px;
-    color: var(--nps-text-medium);
-    font-size: 13px;
+    color: var(--nps-text-light);
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
-.nps-regenerate-btn:hover {
-    background: var(--nps-bg-pastel);
-    border-color: var(--nps-primary);
+.nps-preset-action-btn:hover {
+    background: var(--nps-primary);
+    color: white;
+}
+
+/* ========== 상태 표시 뱃지 ========== */
+.nps-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.nps-badge-success {
+    background: rgba(139, 201, 155, 0.2);
+    color: #5a9a6a;
+}
+
+.nps-badge-warning {
+    background: rgba(240, 201, 135, 0.2);
+    color: #b09050;
+}
+
+.nps-badge-danger {
+    background: rgba(232, 144, 144, 0.2);
+    color: #c87070;
+}
+
+.nps-badge-info {
+    background: rgba(126, 184, 218, 0.2);
     color: var(--nps-primary);
 }
 
-/* ========== ?棺??짆?승??????========== */
+/* ========== 구분선 ========== */
+.nps-divider {
+    height: 1px;
+    background: var(--nps-border);
+    margin: 16px 0;
+}
+
+/* ========== 접는 섹션 ========== */
+.nps-collapsible-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--nps-bg-light);
+    border: 1px solid var(--nps-border);
+    border-radius: var(--nps-radius-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.nps-collapsible-header:hover {
+    background: var(--nps-bg-pastel);
+}
+
+.nps-collapsible-header i {
+    transition: transform 0.3s ease;
+}
+
+.nps-collapsible-header.open i {
+    transform: rotate(180deg);
+}
+
+.nps-collapsible-content {
+    display: none;
+    padding: 16px;
+    border: 1px solid var(--nps-border);
+    border-top: none;
+    border-radius: 0 0 var(--nps-radius-sm) var(--nps-radius-sm);
+}
+
+.nps-collapsible-content.open {
+    display: block;
+}
+
+/* ========== 로딩 상태 ========== */
 .nps-loading-mes {
     background: transparent !important;
     padding: 12px !important;
@@ -683,7 +790,7 @@
     }
 }
 
-/* ========== 癲?????類????========== */
+/* ========== 생성 버튼 ========== */
 #nps-generate-btn {
     display: flex;
     align-items: center;
@@ -707,7 +814,7 @@
     box-shadow: 0 2px 8px var(--nps-shadow);
 }
 
-/* ========== 癲ル슢???????ш끽維쀩??========== */
+/* ========== 메뉴 아이템 ========== */
 #nps-menu-item,
 #nps-settings-menu-item {
     cursor: pointer;
@@ -723,101 +830,152 @@
     color: var(--nps-primary);
 }
 
-/* ========== ?袁⑸즵????========== */
-/* ========== Mobile Responsive ========== */
+/* ========== 모바일 반응형 ========== */
 @media screen and (max-width: 768px) {
-    .nps-popup-overlay {
-        padding: 0 !important;
-        overflow-y: auto !important;
-        -webkit-overflow-scrolling: touch !important;
-        justify-content: flex-start !important;
-        align-items: flex-start !important;
+    #nps-settings-popup {
+        padding: 0;
+        align-items: flex-start;
     }
-    
+
     .nps-popup-content {
-        width: 95% !important;
-        max-width: none !important;
-        margin: 15px auto !important;
-        border-radius: 12px !important;
-        max-height: none !important;
+        width: 100%;
+        max-width: none;
+        height: 100%;
+        height: 100dvh;
+        max-height: none;
+        border-radius: 0;
+        margin: 0;
     }
 
     .nps-popup-header {
-        padding: 14px 16px !important;
-        flex-shrink: 0 !important;
+        padding: 14px 16px;
     }
-    
+
     .nps-popup-header h3 {
-        font-size: 16px !important;
+        font-size: 16px;
     }
 
     .nps-popup-body {
-        padding: 14px 16px !important;
-        overflow-y: visible !important;
-        max-height: none !important;
+        padding: 14px 16px;
     }
 
     .nps-setting-row {
-        flex-direction: column !important;
-        align-items: stretch !important;
+        flex-direction: row;
+        align-items: center;
+        flex-wrap: nowrap;
+        gap: 8px;
+    }
+
+    .nps-setting-row label {
+        flex-shrink: 0;
+        white-space: nowrap;
     }
 
     .nps-setting-row input[type="range"] {
-        max-width: none !important;
+        flex: 1;
+        max-width: none;
+    }
+
+    .nps-setting-row select,
+    .nps-setting-row input[type="number"] {
+        flex: 1;
+        min-width: 100px;
     }
 
     .nps-add-genre-row {
-        flex-direction: column !important;
+        flex-direction: row;
+        flex-wrap: wrap;
     }
 
     .nps-add-genre-row input {
-        min-width: auto !important;
+        flex: 1;
+        min-width: 120px;
     }
 
     .nps-api-test-row {
-        flex-direction: column !important;
-        align-items: flex-start !important;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
     }
-    
+
     .nps-settings-section-title {
-        font-size: 13px !important;
+        font-size: 13px;
     }
-    
+
     .nps-section-desc {
-        font-size: 11px !important;
+        font-size: 11px;
+    }
+
+    .nps-input-sources-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .nps-genre-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .nps-genre-btn {
+        padding: 6px 10px;
+        font-size: 11px;
+    }
+
+    .nps-popup-footer {
+        padding: 14px 16px;
     }
 }
 
 @media screen and (max-width: 480px) {
-    .nps-popup-content {
-        width: 98% !important;
-        margin: 10px auto !important;
-        border-radius: 10px !important;
+    .nps-popup-header {
+        padding: 12px 14px;
     }
 
-    .nps-popup-header {
-        padding: 12px 14px !important;
-    }
-    
     .nps-popup-header h3 {
-        font-size: 14px !important;
+        font-size: 14px;
     }
 
     .nps-popup-body {
-        padding: 12px 14px !important;
+        padding: 12px 14px;
     }
-    
+
+    .nps-setting-row {
+        flex-direction: row;
+        align-items: center;
+        flex-wrap: nowrap;
+        gap: 6px;
+    }
+
     .nps-setting-row label {
-        font-size: 12px !important;
+        font-size: 11px;
+        flex-shrink: 0;
+        white-space: nowrap;
     }
-    
+
+    .nps-genre-container {
+        gap: 4px;
+    }
+
     .nps-genre-btn {
-        padding: 6px 10px !important;
-        font-size: 11px !important;
+        padding: 5px 8px;
+        font-size: 10px;
     }
-    
+
     .nps-btn {
-        padding: 8px 12px !important;
-        font-size: 12px !important;
+        padding: 8px 12px;
+        font-size: 12px;
+    }
+
+    .nps-input-sources-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+    }
+
+    .nps-input-source-item {
+        padding: 6px 8px;
+    }
+
+    .nps-input-source-item label {
+        font-size: 10px;
     }
 }

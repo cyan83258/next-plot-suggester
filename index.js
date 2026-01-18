@@ -1167,7 +1167,7 @@ function updateApiStatus(connected) {
 function openSettingsPopup() {
     const popup = document.getElementById("nps-settings-popup");
     if (popup) {
-        popup.style.display = "flex";
+        $(popup).addClass("open");
         updatePopupUIFromSettings();
     }
 }
@@ -1178,7 +1178,7 @@ function openSettingsPopup() {
 function closeSettingsPopup() {
     const popup = document.getElementById("nps-settings-popup");
     if (popup) {
-        popup.style.display = "none";
+        $(popup).removeClass("open");
     }
 }
 
@@ -1720,7 +1720,8 @@ function addChatButton() {
  * 설정 팝업 HTML 생성
  */
 function createSettingsPopupHtml() {
-    let html = '<div id="nps-settings-popup" class="nps-popup-overlay">';
+    let html = '<div id="nps-settings-popup">';
+    html += '<div class="nps-popup-overlay-bg" id="nps-popup-overlay-bg"></div>';
     html += '<div class="nps-popup-content">';
     
     // 헤더
