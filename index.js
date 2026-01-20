@@ -23,6 +23,7 @@ import {
     eventSource, 
     event_types, 
     saveSettingsDebounced,
+    saveSettings as saveSettingsImmediate,
     getRequestHeaders,
     chat,
     Generate,
@@ -68,7 +69,13 @@ const defaultSettings = {
         peaceful: false,  // 잔잔한 일상
         conflict: false   // 부정적 사고/갈등
     },
-    customQualityPrompts: []  // 사용자 정의 퀄리티 프롬프트
+    customQualityPrompts: [],  // 사용자 정의 퀄리티 프롬프트
+    useCustomDirection: false,  // 전개 방향 입력 사용
+    // 분위기 설정
+    moodSettings: {
+        enabled: false,
+        selectedMood: ""
+    }
 };
 
 // 기본 퀄리티 프롬프트 정의
@@ -98,6 +105,58 @@ const defaultQualityPrompts = {
         prompt: "Introduce tension, disagreement, or a challenging situation that tests the characters. This could be interpersonal conflict, external threat, moral dilemma, misunderstanding, betrayal, or an obstacle that forces difficult choices. Show how characters react under pressure, their flaws and vulnerabilities. Create emotional stakes that demand resolution and character growth."
     }
 };
+// 기본 분위기 프롬프트 정의
+const defaultMoods = [
+    {
+        id: "hopeful",
+        name: "희망적/긍정적",
+        nameEn: "Hopeful/Positive",
+        prompt: "Create an uplifting, optimistic atmosphere. Focus on hope, joy, warmth, and positive developments. Characters should experience moments of happiness, connection, or triumph. Include heartwarming interactions and silver linings even in difficult situations."
+    },
+    {
+        id: "dark",
+        name: "어둡고 절망적",
+        nameEn: "Dark/Desperate",
+        prompt: "Create a dark, heavy atmosphere filled with despair or tension. Focus on struggles, losses, moral dilemmas, or overwhelming challenges. Characters may face difficult truths, betrayals, or seemingly hopeless situations. Emphasize emotional weight and dramatic tension."
+    },
+    {
+        id: "mysterious",
+        name: "신비롭고 미스터리",
+        nameEn: "Mysterious",
+        prompt: "Create an atmosphere of mystery and intrigue. Include unexplained events, hidden secrets, cryptic hints, or supernatural elements. Keep readers guessing with ambiguous details and subtle foreshadowing. Maintain an air of the unknown."
+    },
+    {
+        id: "romantic",
+        name: "로맨틱/감성적",
+        nameEn: "Romantic/Emotional",
+        prompt: "Create a romantic, emotionally charged atmosphere. Focus on deep feelings, intimate moments, meaningful glances, and heart-fluttering interactions. Emphasize emotional vulnerability, attraction, and the development of romantic bonds."
+    },
+    {
+        id: "tense",
+        name: "긴장감/서스펜스",
+        nameEn: "Tense/Suspenseful",
+        prompt: "Create a tense, suspenseful atmosphere. Build anticipation and anxiety through pacing, uncertain outcomes, and high stakes. Include moments of danger, close calls, or psychological pressure. Keep the tension palpable throughout."
+    },
+    {
+        id: "comedic",
+        name: "유머러스/코믹",
+        nameEn: "Humorous/Comedic",
+        prompt: "Create a light-hearted, humorous atmosphere. Include witty dialogue, amusing situations, comedic timing, and playful interactions. Focus on fun, laughter, and entertaining moments while maintaining character authenticity."
+    },
+    {
+        id: "melancholic",
+        name: "우울/감상적",
+        nameEn: "Melancholic/Wistful",
+        prompt: "Create a melancholic, reflective atmosphere. Focus on bittersweet moments, nostalgia, loss, or quiet sadness. Characters may contemplate the past, missed opportunities, or the passage of time. Emphasize emotional depth and poignant beauty."
+    },
+    {
+        id: "epic",
+        name: "웅장/서사적",
+        nameEn: "Epic/Grand",
+        prompt: "Create an epic, grand atmosphere. Focus on momentous events, heroic actions, or pivotal turning points. Include sweeping descriptions, dramatic confrontations, and a sense of historical significance. Make the stakes feel world-changing."
+    }
+];
+
 const defaultGenres = [
     { id: "comedy", name: "Comedy", nameKo: "코미디" },
     { id: "slice_of_life", name: "Slice of Life", nameKo: "일상" },
@@ -116,6 +175,7 @@ const defaultGenres = [
 // 현재 추천 메시지 ID 추적
 let currentSuggestionMessageId = null;
 let isGenerating = false;
+let currentCustomDirection = "";
 
 /**
  * 설정 로드
@@ -138,10 +198,11 @@ function loadSettings() {
 }
 
 /**
- * 설정 저장
+ * 설정 저장 (즉시 저장)
  */
 function saveSettings() {
-    saveSettingsDebounced();
+    // 즉시 저장을 위해 saveSettingsImmediate 호출
+    saveSettingsImmediate();
 }
 
 /**
@@ -563,6 +624,24 @@ async function buildPrompt() {
         ? "Additional instructions: " + settings.customPrompt + "\n\n"
         : "";
 
+    // 전개 방향 입력이 있으면 프롬프트에 추가
+    log("buildPrompt: currentCustomDirection =", currentCustomDirection);
+    const directionInstruction = currentCustomDirection
+        ? "USER REQUESTED PLOT DIRECTION: The user wants the story to develop in this direction: " + currentCustomDirection + ". Make sure all suggestions follow this direction while being creative and detailed.\n\n"
+        : "";
+    log("buildPrompt: directionInstruction =", directionInstruction);
+
+    // 분위기 설정 프롬프트
+    let moodInstruction = "";
+    const moodSettings = settings.moodSettings || defaultSettings.moodSettings;
+    if (moodSettings.enabled && moodSettings.selectedMood) {
+        const selectedMood = defaultMoods.find(function(m) { return m.id === moodSettings.selectedMood; });
+        if (selectedMood) {
+            moodInstruction = "ATMOSPHERE/MOOD INSTRUCTION: " + selectedMood.prompt + "\n\n";
+            log("buildPrompt: moodInstruction =", moodInstruction);
+        }
+    }
+
     // 언어별 설정
     const langConfig = {
         ko: {
@@ -625,6 +704,8 @@ async function buildPrompt() {
     
     prompt += genreInstruction;
     prompt += customInstruction;
+    prompt += directionInstruction;
+    prompt += moodInstruction;
     prompt += "=== Context ===\n" + contextParts.join("\n\n") + "\n=== End Context ===\n\n";
     prompt += "Please provide exactly " + settings.suggestionCount + " suggestions for what could happen next. Format your response as a numbered list:\n";
     prompt += "1. [" + lang.first + "]\n";
@@ -956,6 +1037,12 @@ async function showSuggestions(silent = false) {
         return;
     }
     
+    // 전개 방향 입력 사용이 켜져 있으면 팝업 먼저 표시
+    if (settings.useCustomDirection) {
+        openDirectionPopup();
+        return;
+    }
+    
     removeSuggestionMessage();
     
     isGenerating = true;
@@ -1256,6 +1343,8 @@ function updatePopupUIFromSettings() {
     if (autoSuggestEl) autoSuggestEl.checked = settings.autoSuggest;
     if (autoPasteEl) autoPasteEl.checked = settings.autoPasteToInput;
     if (showInputBtnEl) showInputBtnEl.checked = settings.showInputButton !== false;
+    const useCustomDirectionEl = document.getElementById("nps-popup-use-custom-direction");
+    if (useCustomDirectionEl) useCustomDirectionEl.checked = settings.useCustomDirection === true;
     if (sentenceCountEl) sentenceCountEl.value = settings.sentenceCount;
     if (suggestionCountEl) suggestionCountEl.value = settings.suggestionCount;
     if (outputLanguageEl) outputLanguageEl.value = settings.outputLanguage || "ko";
@@ -1273,6 +1362,33 @@ function updatePopupUIFromSettings() {
     if (inputSummaryEl) inputSummaryEl.checked = sources.scenarioSummary;
     if (inputAuEl) inputAuEl.checked = sources.auWorldBuilder;
     if (inputChatEl) inputChatEl.checked = true; // 항상 체크 (필수)
+
+    // 퀄리티 프롬프트 체크박스 초기화
+    const qp = settings.qualityPrompts || defaultSettings.qualityPrompts;
+    const qpLiteraryEl = document.getElementById("nps-qp-literary");
+    const qpEventfulEl = document.getElementById("nps-qp-eventful");
+    const qpPeacefulEl = document.getElementById("nps-qp-peaceful");
+    const qpConflictEl = document.getElementById("nps-qp-conflict");
+    if (qpLiteraryEl) qpLiteraryEl.checked = qp.literaryStyle !== false;
+    if (qpEventfulEl) qpEventfulEl.checked = qp.eventful === true;
+    if (qpPeacefulEl) qpPeacefulEl.checked = qp.peaceful === true;
+    if (qpConflictEl) qpConflictEl.checked = qp.conflict === true;
+    
+    // 분위기 설정 초기화
+    const moodInit = settings.moodSettings || defaultSettings.moodSettings;
+    const moodEnabledInit = document.getElementById('nps-mood-enabled');
+    if (moodEnabledInit) {
+        moodEnabledInit.checked = moodInit.enabled === true;
+        const moodOptions = document.querySelector('.nps-mood-options');
+        if (moodOptions) {
+            moodOptions.style.opacity = moodInit.enabled ? '1' : '0.5';
+            moodOptions.style.pointerEvents = moodInit.enabled ? 'auto' : 'none';
+        }
+    }
+    if (moodInit.selectedMood) {
+        const selectedRadio = document.querySelector('input[name="nps-mood-select"][value="' + moodInit.selectedMood + '"]');
+        if (selectedRadio) selectedRadio.checked = true;
+    }
     
     // LLM Provider/Model 설정
     const llmProviderEl = document.getElementById("nps-popup-llm-provider");
@@ -1744,6 +1860,50 @@ function bindPopupEvents() {
         });
     }
 
+    // 전개 방향 입력 사용 토글
+    const useCustomDirectionEl = document.getElementById("nps-popup-use-custom-direction");
+    if (useCustomDirectionEl) {
+        useCustomDirectionEl.addEventListener("change", function() {
+            extension_settings[extensionName].useCustomDirection = this.checked;
+            saveSettings();
+        });
+    }
+
+    // ===== 전개 방향 입력 팝업 이벤트 =====
+    const directionCloseBtn = document.getElementById("nps-direction-close-btn");
+    if (directionCloseBtn) {
+        directionCloseBtn.addEventListener("click", closeDirectionPopup);
+    }
+
+    const directionOverlay = document.getElementById("nps-direction-overlay-bg");
+    if (directionOverlay) {
+        directionOverlay.addEventListener("click", closeDirectionPopup);
+    }
+
+    const directionGenerateBtn = document.getElementById("nps-direction-generate-btn");
+    if (directionGenerateBtn) {
+        directionGenerateBtn.addEventListener("click", generateWithDirection);
+    }
+
+    const directionCancelBtn = document.getElementById("nps-direction-cancel-btn");
+    if (directionCancelBtn) {
+        directionCancelBtn.addEventListener("click", function() {
+            currentCustomDirection = "";
+            closeDirectionPopup();
+        });
+    }
+
+    // Enter 키로 생성
+    const directionInput = document.getElementById("nps-direction-input");
+    if (directionInput) {
+        directionInput.addEventListener("keydown", function(e) {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                generateWithDirection();
+            }
+        });
+    }
+
     // ===== 탭 전환 이벤트 =====
     const tabBtns = document.querySelectorAll('.nps-tab-btn');
     tabBtns.forEach(function(btn) {
@@ -1863,6 +2023,117 @@ function bindPopupEvents() {
             if (newQualityPromptInput) newQualityPromptInput.value = '';
             if (newQualityPromptContainer) newQualityPromptContainer.style.display = 'none';
         });
+    }
+
+    // ===== 분위기 설정 이벤트 =====
+    const moodEnabledEl = document.getElementById('nps-mood-enabled');
+    if (moodEnabledEl) {
+        moodEnabledEl.addEventListener('change', function() {
+            if (!extension_settings[extensionName].moodSettings) {
+                extension_settings[extensionName].moodSettings = { ...defaultSettings.moodSettings };
+            }
+            extension_settings[extensionName].moodSettings.enabled = this.checked;
+            
+            // 분위기 옵션들 활성화/비활성화 상태 표시
+            const moodOptions = document.querySelector('.nps-mood-options');
+            if (moodOptions) {
+                moodOptions.style.opacity = this.checked ? '1' : '0.5';
+                moodOptions.style.pointerEvents = this.checked ? 'auto' : 'none';
+            }
+            
+            saveSettings();
+        });
+    }
+
+    // 분위기 선택 라디오 버튼들
+    const moodRadios = document.querySelectorAll('input[name="nps-mood-select"]');
+    moodRadios.forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            if (!extension_settings[extensionName].moodSettings) {
+                extension_settings[extensionName].moodSettings = { ...defaultSettings.moodSettings };
+            }
+            extension_settings[extensionName].moodSettings.selectedMood = this.value;
+            saveSettings();
+        });
+    });
+}
+
+/**
+ * 전개 방향 입력 팝업 열기
+ */
+function openDirectionPopup() {
+    const popup = document.getElementById("nps-direction-popup");
+    if (popup) {
+        popup.classList.add("active");
+        const input = document.getElementById("nps-direction-input");
+        if (input) {
+            input.value = "";
+            input.focus();
+        }
+    }
+}
+
+/**
+ * 전개 방향 입력 팝업 닫기
+ */
+function closeDirectionPopup() {
+    const popup = document.getElementById("nps-direction-popup");
+    if (popup) {
+        popup.classList.remove("active");
+    }
+    // currentCustomDirection은 generateWithDirection의 finally에서 초기화
+}
+
+/**
+ * 전개 방향 입력 후 생성 실행
+ */
+async function generateWithDirection() {
+    const input = document.getElementById("nps-direction-input");
+    const direction = input ? input.value.trim() : "";
+    
+    if (!direction) {
+        toastr.warning("전개 방향을 입력해주세요.");
+        return;
+    }
+    
+    currentCustomDirection = direction;
+    log("Custom direction set to:", currentCustomDirection);
+    closeDirectionPopup();
+    
+    // 실제 생성 실행
+    if (isGenerating) {
+        toastr.warning("이미 생성 중입니다. 잠시 기다려 주세요.");
+        return;
+    }
+    
+    removeSuggestionMessage();
+    isGenerating = true;
+    
+    try {
+        showLoadingMessage();
+        
+        const prompt = await buildPrompt();
+        log("Sending prompt with direction:", prompt);
+        
+        const response = await sendApiRequest(prompt);
+        log("Received response:", response);
+        
+        const suggestions = parseSuggestions(response);
+        
+        if (suggestions.length === 0) {
+            throw new Error("No suggestions parsed from response");
+        }
+        
+        removeLoadingMessage();
+        displaySuggestionMessage(suggestions);
+        
+    } catch (error) {
+        log("Error generating suggestions:", error);
+        removeLoadingMessage();
+        toastr.error("추천 생성 중 오류가 발생했습니다: " + error.message);
+    } finally {
+        isGenerating = false;
+        currentCustomDirection = "";
     }
 }
 
@@ -2032,7 +2303,8 @@ function createSettingsPopupHtml() {
     html += '<div class="nps-tabs">';
     html += '<button class="nps-tab-btn active" data-tab="general"><i class="fa-solid fa-gear"></i> 일반</button>';
     html += '<button class="nps-tab-btn" data-tab="quality"><i class="fa-solid fa-wand-magic-sparkles"></i> 퀄리티</button>';
-    html += '<button class="nps-tab-btn" data-tab="api"><i class="fa-solid fa-plug"></i> API</button>';
+    html += '<button class="nps-tab-btn" data-tab="mood"><i class="fa-solid fa-cloud-sun"></i> 분위기</button>';
+        html += '<button class="nps-tab-btn" data-tab="api"><i class="fa-solid fa-plug"></i> API</button>';
     html += '</div>';
     
     // 일반 탭
@@ -2062,7 +2334,12 @@ function createSettingsPopupHtml() {
     html += '<input type="checkbox" id="nps-popup-show-input-btn">';
     html += '</div>';
 
-    html += '<div class="nps-setting-row">';;
+    html += '<div class="nps-setting-row">';
+    html += '<label for="nps-popup-use-custom-direction">전개 방향 입력 사용</label>';
+    html += '<input type="checkbox" id="nps-popup-use-custom-direction">';
+    html += '</div>';
+
+    html += '<div class="nps-setting-row">';
     html += '<label for="nps-popup-sentence-count">추천 당 문장 수</label>';
     html += '<input type="number" id="nps-popup-sentence-count" min="1" max="10" value="2" class="nps-number-input">';
     html += '</div>';
@@ -2201,6 +2478,26 @@ function createSettingsPopupHtml() {
     html += '</div>';
     
     html += '</div>';  // 퀄리티 탭 끝
+
+    // 분위기 탭
+    html += '<div class="nps-tab-content" id="nps-tab-mood">';
+    html += '<div class="nps-settings-section">';
+    html += '<div class="nps-settings-section-title"><i class="fa-solid fa-cloud-sun"></i><span>분위기 설정</span></div>';
+    html += '<p class="nps-section-desc">생성될 추천의 전반적인 분위기를 선택하세요.</p>';
+    html += '<div class="nps-setting-row">';
+    html += '<label for="nps-mood-enabled">분위기 설정 사용</label>';
+    html += '<input type="checkbox" id="nps-mood-enabled">';
+    html += '</div>';
+    html += '<div class="nps-mood-options">';
+    defaultMoods.forEach((mood, index) => {
+        html += '<div class="nps-mood-option">';
+        html += '<input type="radio" name="nps-mood-select" id="nps-mood-' + mood.id + '" value="' + mood.id + '"' + (index === 0 ? ' checked' : '') + '>';
+        html += '<label for="nps-mood-' + mood.id + '"><span class="nps-mood-name">' + mood.name + '</span><span class="nps-mood-name-en">' + mood.nameEn + '</span></label>';
+        html += '</div>';
+    });
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';  // 분위기 탭 끝
     
     // API 탭
     html += '<div class="nps-tab-content" id="nps-tab-api">';
@@ -2281,6 +2578,25 @@ function createSettingsPopupHtml() {
     html += '</div>';  // nps-popup-body
     html += '</div>';  // nps-popup-content
     html += '</div>';  // nps-settings-popup
+
+    // 전개 방향 입력 팝업
+    html += '<div id="nps-direction-popup" class="nps-direction-popup">';
+    html += '<div class="nps-popup-overlay-bg" id="nps-direction-overlay-bg"></div>';
+    html += '<div class="nps-direction-popup-content">';
+    html += '<div class="nps-popup-header">';
+    html += '<h3><i class="fa-solid fa-compass"></i> 전개 방향 입력</h3>';
+    html += '<button id="nps-direction-close-btn" class="nps-popup-close-btn">&times;</button>';
+    html += '</div>';
+    html += '<div class="nps-popup-body">';
+    html += '<p class="nps-direction-desc">원하는 스토리 전개 방향을 입력하세요. 입력한 내용을 기반으로 추천이 생성됩니다.</p>';
+    html += '<textarea id="nps-direction-input" placeholder="예: 주인공이 여행을 떠남, 갑자기 비가 내리기 시작함, 새로운 인물 등장..."></textarea>';
+    html += '<div class="nps-direction-btn-row">';
+    html += '<button id="nps-direction-generate-btn" class="nps-btn nps-btn-primary"><i class="fa-solid fa-sparkles"></i> 생성</button>';
+    html += '<button id="nps-direction-cancel-btn" class="nps-btn nps-btn-secondary"><i class="fa-solid fa-times"></i> 취소</button>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
 
     return html;
 }

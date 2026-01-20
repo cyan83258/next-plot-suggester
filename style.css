@@ -1,4 +1,4 @@
-/* ë‹¤ìŒ ì „ê°œ ì¶”ì²œ í™•ì¥ - íŒŒìŠ¤í…” í…Œë§ˆ ìŠ¤íƒ€ì¼ v3.0 (ëª¨ë°”ì¼ ìµœì í™”) */
+ï»¿/* ë‹¤ìŒ ì „ê°œ ì¶”ì²œ í™•ì¥ - íŒŒìŠ¤í…” í…Œë§ˆ ìŠ¤íƒ€ì¼ v3.0 (ëª¨ë°”ì¼ ìµœì í™”) */
 
 /* ========== CSS ë³€ìˆ˜ ========== */
 :root {
@@ -1169,7 +1169,7 @@
         font-size: 10px;
     }
 }
-/* ÅÇ ½Ã½ºÅÛ */
+/* ï¿½ï¿½ ï¿½Ã½ï¿½ï¿½ï¿½ */
 .nps-tabs {
     display: flex;
     gap: 5px;
@@ -1210,7 +1210,7 @@
     display: block;
 }
 
-/* Ä÷¸®Æ¼ ÇÁ·ÒÇÁÆ® ½ºÅ¸ÀÏ */
+/* ï¿½ï¿½ï¿½ï¿½Æ¼ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ® ï¿½ï¿½Å¸ï¿½ï¿½ */
 .nps-setting-row label small {
     color: var(--SmartThemeBodyColor);
     opacity: 0.7;
@@ -1302,7 +1302,7 @@
     opacity: 0.8;
 }
 
-/* »ç¿ëÀÚ Á¤ÀÇ Ä÷¸®Æ¼ ÇÁ·ÒÇÁÆ® ¸ñ·Ï */
+/* ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½Æ¼ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ® ï¿½ï¿½ï¿½ */
 #nps-custom-quality-list {
     display: flex;
     flex-direction: column;
@@ -1349,4 +1349,151 @@
 
 .nps-custom-quality-item .nps-delete-btn:hover {
     background: rgba(255, 107, 107, 0.1);
+}
+
+/* ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Ô·ï¿½ ï¿½Ë¾ï¿½ */
+.nps-direction-popup {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10001;
+}
+
+.nps-direction-popup.active {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.nps-direction-popup-content {
+    background: var(--SmartThemeBlurTintColor);
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 12px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+    z-index: 10002;
+    overflow: hidden;
+}
+
+.nps-direction-desc {
+    margin: 0 0 15px 0;
+    font-size: 13px;
+    color: var(--SmartThemeBodyColor);
+    opacity: 0.9;
+}
+
+.nps-direction-popup-content .nps-popup-body textarea {
+    width: 100%;
+    min-height: 100px;
+    padding: 12px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    background: var(--black50);
+    color: var(--SmartThemeBodyColor);
+    font-size: 14px;
+    resize: vertical;
+    margin-bottom: 15px;
+}
+
+.nps-direction-popup-content .nps-popup-body textarea:focus {
+    outline: none;
+    border-color: var(--SmartThemeQuoteColor);
+}
+
+.nps-direction-btn-row {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.nps-direction-btn-row .nps-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.nps-direction-btn-row .nps-btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.nps-direction-btn-row .nps-btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.nps-direction-btn-row .nps-btn-secondary {
+    background: transparent;
+    border: 1px solid var(--SmartThemeBorderColor);
+    color: var(--SmartThemeBodyColor);
+}
+
+.nps-direction-btn-row .nps-btn-secondary:hover {
+    background: var(--SmartThemeBlurTintColor);
+}
+
+/* ===== ë¶„ìœ„ê¸° íƒ­ ìŠ¤íƒ€ì¼ ===== */
+.nps-mood-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+    transition: opacity 0.2s ease;
+}
+
+.nps-mood-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--SmartThemeBotMesBlurTintColor, rgba(30, 30, 30, 0.5));
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+    border: 1px solid transparent;
+}
+
+.nps-mood-option:hover {
+    background: var(--SmartThemeBlurTintColor, rgba(50, 50, 50, 0.7));
+    border-color: var(--SmartThemeBorderColor, rgba(100, 100, 100, 0.3));
+}
+
+.nps-mood-option input[type="radio"] {
+    margin-top: 3px;
+    cursor: pointer;
+    accent-color: var(--SmartThemeQuoteColor, #68b7e3);
+}
+
+.nps-mood-option label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    cursor: pointer;
+    flex: 1;
+}
+
+.nps-mood-name {
+    font-weight: 600;
+    font-size: 0.95em;
+    color: var(--SmartThemeBodyColor, #ccc);
+}
+
+.nps-mood-name-en {
+    font-size: 0.8em;
+    color: var(--SmartThemeQuoteColor, #68b7e3);
+    opacity: 0.8;
+}
+
+.nps-mood-option input[type="radio"]:checked + label .nps-mood-name {
+    color: var(--SmartThemeQuoteColor, #68b7e3);
 }
