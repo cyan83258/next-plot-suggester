@@ -1855,6 +1855,69 @@ export function bindPopupEvents() {
         });
     }
 
+    // ─── v1.8.1: 텍스트에어리어 확대 팝업 ───
+    let _expandTargetId = null;
+
+    function openTextareaExpandPopup(targetId) {
+        const popup = document.getElementById("nps-textarea-expand-popup");
+        const expandInput = document.getElementById("nps-textarea-expand-input");
+        const sourceEl = document.getElementById(targetId);
+        const titleEl = document.getElementById("nps-textarea-expand-title");
+        if (!popup || !expandInput || !sourceEl) return;
+
+        _expandTargetId = targetId;
+        expandInput.value = sourceEl.value;
+        expandInput.placeholder = sourceEl.placeholder;
+
+        // 타이틀 업데이트
+        const labelMap = {
+            "nps-popup-custom-prompt": "추가 지시사항",
+            "nps-popup-negative-prompt": "네거티브 프롬프트"
+        };
+        if (titleEl) {
+            titleEl.innerHTML = '<i class="fa-solid fa-expand"></i> ' + (labelMap[targetId] || "확대 편집");
+        }
+
+        popup.classList.add("active");
+        expandInput.focus();
+    }
+
+    function closeTextareaExpandPopup(save) {
+        const popup = document.getElementById("nps-textarea-expand-popup");
+        if (!popup) return;
+
+        if (save && _expandTargetId) {
+            const expandInput = document.getElementById("nps-textarea-expand-input");
+            const sourceEl = document.getElementById(_expandTargetId);
+            if (expandInput && sourceEl) {
+                sourceEl.value = expandInput.value;
+                sourceEl.dispatchEvent(new Event("input", { bubbles: true }));
+            }
+        }
+
+        popup.classList.remove("active");
+        _expandTargetId = null;
+    }
+
+    document.querySelectorAll(".nps-textarea-expand-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            const targetId = btn.getAttribute("data-target");
+            if (targetId) openTextareaExpandPopup(targetId);
+        });
+    });
+
+    const expandCloseBtn = document.getElementById("nps-textarea-expand-close-btn");
+    if (expandCloseBtn) expandCloseBtn.addEventListener("click", function () { closeTextareaExpandPopup(false); });
+
+    const expandOverlay = document.getElementById("nps-textarea-expand-overlay-bg");
+    if (expandOverlay) expandOverlay.addEventListener("click", function () { closeTextareaExpandPopup(false); });
+
+    const expandSaveBtn = document.getElementById("nps-textarea-expand-save-btn");
+    if (expandSaveBtn) expandSaveBtn.addEventListener("click", function () { closeTextareaExpandPopup(true); });
+
+    const expandCancelBtn = document.getElementById("nps-textarea-expand-cancel-btn");
+    if (expandCancelBtn) expandCancelBtn.addEventListener("click", function () { closeTextareaExpandPopup(false); });
+
     // ─── v1.6.0: 설정 내보내기/불러오기 ───
     const exportBtn = document.getElementById("nps-export-settings-btn");
     if (exportBtn) {

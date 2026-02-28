@@ -124,6 +124,7 @@ export function createSettingsPopupHtml() {
     html += '</div>'; // nps-settings-popup
 
     html += buildDirectionPopupHtml();
+    html += buildTextareaExpandPopupHtml();
 
     return html;
 }
@@ -184,7 +185,8 @@ function buildGeneralTabHtml() {
     html += '<div class="nps-settings-section">';
     html += '<div class="nps-settings-section-title"><i class="fa-solid fa-pen"></i><span>추가 지시사항</span></div>';
     html += '<div class="nps-setting-row nps-setting-row-vertical">';
-    html += '<label for="nps-popup-custom-prompt">추천 생성 시 추가할 지시사항 (선택사항)</label>';
+    html += '<div class="nps-textarea-header"><label for="nps-popup-custom-prompt">추천 생성 시 추가할 지시사항 (선택사항)</label>';
+    html += '<button class="nps-textarea-expand-btn" data-target="nps-popup-custom-prompt" title="확대 편집"><i class="fa-solid fa-expand"></i></button></div>';
     html += '<textarea id="nps-popup-custom-prompt" placeholder="예: 대화체로 작성해주세요, 감정 표현을 풍부하게 해주세요"></textarea>';
     html += '</div>';
     html += '</div>';
@@ -193,7 +195,8 @@ function buildGeneralTabHtml() {
     html += '<div class="nps-settings-section">';
     html += '<div class="nps-settings-section-title"><i class="fa-solid fa-ban"></i><span>네거티브 프롬프트</span></div>';
     html += '<div class="nps-setting-row nps-setting-row-vertical">';
-    html += '<label for="nps-popup-negative-prompt">제외할 전개/요소 (추천에서 배제됨)</label>';
+    html += '<div class="nps-textarea-header"><label for="nps-popup-negative-prompt">제외할 전개/요소 (추천에서 배제됨)</label>';
+    html += '<button class="nps-textarea-expand-btn" data-target="nps-popup-negative-prompt" title="확대 편집"><i class="fa-solid fa-expand"></i></button></div>';
     html += '<textarea id="nps-popup-negative-prompt" placeholder="예: 갑작스러운 고백, 기억상실, 이세계 전이, 폭력적인 전개"></textarea>';
     html += '<p class="nps-section-desc" style="margin-top:4px;">쉼표로 구분하여 여러 항목을 입력할 수 있습니다.</p>';
     html += '</div>';
@@ -656,5 +659,24 @@ function buildDirectionPopupHtml() {
     html += '<button id="nps-direction-generate-btn" class="nps-btn nps-btn-primary"><i class="fa-solid fa-sparkles"></i> 생성</button>';
     html += '<button id="nps-direction-cancel-btn" class="nps-btn nps-btn-secondary"><i class="fa-solid fa-times"></i> 취소</button>';
     html += '</div></div></div></div>';
+    return html;
+}
+
+function buildTextareaExpandPopupHtml() {
+    let html = '<div id="nps-textarea-expand-popup" class="nps-textarea-expand-popup">';
+    html += '<div class="nps-popup-overlay-bg" id="nps-textarea-expand-overlay-bg"></div>';
+    html += '<div class="nps-textarea-expand-content">';
+    html += '<div class="nps-popup-header">';
+    html += '<h3 id="nps-textarea-expand-title"><i class="fa-solid fa-expand"></i> 확대 편집</h3>';
+    html += '<button id="nps-textarea-expand-close-btn" class="nps-popup-close-btn">&times;</button>';
+    html += '</div>';
+    html += '<div class="nps-popup-body">';
+    html += '<textarea id="nps-textarea-expand-input" placeholder=""></textarea>';
+    html += '</div>';
+    html += '<div class="nps-textarea-expand-footer">';
+    html += '<button id="nps-textarea-expand-save-btn" class="nps-btn nps-btn-primary"><i class="fa-solid fa-check"></i> 적용</button>';
+    html += '<button id="nps-textarea-expand-cancel-btn" class="nps-btn nps-btn-secondary"><i class="fa-solid fa-times"></i> 취소</button>';
+    html += '</div>';
+    html += '</div></div>';
     return html;
 }
