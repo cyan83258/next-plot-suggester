@@ -1227,7 +1227,7 @@ async function handleSuggestionAction(e) {
             break;
         }
         case "regenerate": {
-            if (_callbacks.showSuggestions) _callbacks.showSuggestions();
+            if (_callbacks.showSuggestions) _callbacks.showSuggestions(false, true);
             break;
         }
         case "feedback-negative": {

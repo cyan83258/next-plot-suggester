@@ -166,7 +166,7 @@ function applySimilarityFilter(suggestions) {
  * 추천 표시
  * @param {boolean} [silent=false] - true이면 경고 메시지 표시 안함
  */
-async function showSuggestions(silent) {
+async function showSuggestions(silent, skipCache) {
     if (silent === undefined) silent = false;
 
     const settings = extension_settings[extensionName];
@@ -193,12 +193,17 @@ async function showSuggestions(silent) {
         return;
     }
 
-    // 캐시 확인 (async — IndexedDB)
-    const cached = await getCachedSuggestions();
-    if (cached) {
-        removeSuggestionMessage();
-        displaySuggestionMessage(cached);
-        return;
+    // 재생성 시 캐시 무효화
+    if (skipCache) {
+        await invalidateCache();
+    } else {
+        // 캐시 확인 (async — IndexedDB)
+        const cached = await getCachedSuggestions();
+        if (cached) {
+            removeSuggestionMessage();
+            displaySuggestionMessage(cached);
+            return;
+        }
     }
 
     // showSuggestions에서 이미 isGenerating을 체크했으므로 silent=true로 전달
