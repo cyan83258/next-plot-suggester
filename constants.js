@@ -20,7 +20,7 @@ export const defaultSettings = {
     customGenres: [],
     customPrompt: "",
     inputSources: {
-        charDescription: false,
+        charDescription: true,
         personaDescription: false,
         worldInfo: false,
         scenarioSummary: false,
@@ -42,7 +42,7 @@ export const defaultSettings = {
         poeticStyle: false,
         casualChat: false
     },
-    selectedWritingStyle: "literaryStyle",
+    selectedWritingStyle: "conciseReport",
     qualityEnhancements: {
         subtext: false,
         figurative: false,
@@ -61,9 +61,9 @@ export const defaultSettings = {
     },
     // v1.3.0: 생성 파라미터
     temperature: 0.8,
-    maxTokens: 1000,
+    maxTokens: 2400,
     // v1.3.0: 토큰/컨텍스트
-    maxContextTokens: 4000,
+    maxContextTokens: 8000,
     // v1.3.0: JSON 구조화 출력
     useJsonMode: true,
     // v1.3.0: 캐싱
@@ -78,9 +78,9 @@ export const defaultSettings = {
     // v1.5.2: 프롬프트 압축
     enableCompression: true,
     compressionThreshold: 20,
-    narrativeArc: { autoDetect: true, manualStage: "" },
+    narrativeArc: { autoDetect: false, manualStage: "" },
     focusTarget: { type: "auto", characterName: "", customFocus: "" },
-    suggestionSpectrum: true,
+    suggestionSpectrum: false,
     emotionCurve: { enabled: false, currentEmotion: "", targetEmotion: "", transitionSpeed: "gradual" },
     pacingEnabled: false,
     pacing: { timeframe: "immediate", speed: 5 },
@@ -100,7 +100,14 @@ export const defaultSettings = {
     // v1.7.0: 퀵 템플릿
     quickTemplates: [],
     // v1.7.0: 피드백 히스토리
-    negativeFeedbackKeywords: []
+    negativeFeedbackKeywords: [],
+    schemaVersion: 2,
+    generationMode: "fast",
+    candidateCount: 6,
+    outputMode: "outline",
+    useStoryMemory: true,
+    feedbackRecords: [],
+    sceneLocks: { noNewCharacters: false, keepLocation: false, noTimeSkip: false, userAgency: true, custom: "" }
 };
 
 /** 기본 퀄리티 프롬프트 — 문체/스타일 선택 (v1.8.0: 6종) */

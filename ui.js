@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 다음 전개 추천 확장 프로그램 - UI 관리
  *
  * Feature 2: 바로 보내기
@@ -23,6 +23,7 @@ import {
     scrollToBottom, pasteToInputField, sendMessageToChat, getAllGenres
 } from "./utils.js";
 import { testApiConnection } from "./api.js";
+import { refreshStudio, decorateCandidates, openFeedback } from "./studio.js";
 import { detectNarrativeStage, getTokenBreakdown } from "./prompt.js";
 import { analyzeConversationRhythm } from "./utils.js";
 import { createSettingsPopupHtml, createSuggestionMessageHtml, createPreviewMessageHtml } from "./ui-html.js";
@@ -50,6 +51,7 @@ export function setupUICallbacks(callbacks) {
 // 설정 저장 (Perf 1: 디바운싱)
 // ═══════════════════════════════════════════
 function saveSettings() {
+    state.contextRevision = (state.contextRevision || 0) + 1;
     saveSettingsDebounced();
 }
 
@@ -62,6 +64,7 @@ export function openSettingsPopup() {
         $(popup).addClass("open");
         updatePopupUIFromSettings();
         refreshAnalyticsPanel();
+        refreshStudio();
     }
 }
 
@@ -102,9 +105,9 @@ export function updatePopupUIFromSettings() {
 
     // v1.3.0: 생성 파라미터
     const tempEl = document.getElementById("nps-popup-temperature");
-    if (tempEl) tempEl.value = settings.temperature || 0.8;
+    if (tempEl) tempEl.value = settings.temperature ?? 0.8;
     const tempDisplay = document.getElementById("nps-popup-temp-value");
-    if (tempDisplay) tempDisplay.textContent = (settings.temperature || 0.8).toFixed(1);
+    if (tempDisplay) tempDisplay.textContent = (settings.temperature ?? 0.8).toFixed(1);
     setValue("nps-popup-max-tokens", settings.maxTokens || 1000);
     setValue("nps-popup-max-context", settings.maxContextTokens || 4000);
     setChecked("nps-popup-json-mode", settings.useJsonMode !== false);
@@ -339,7 +342,7 @@ function updatePlotTabUI(settings) {
 
     // Feature 2: 서사 단계
     const arcSettings = settings.narrativeArc || {};
-    setChecked("nps-arc-auto-detect", arcSettings.autoDetect !== false);
+    setChecked("nps-arc-auto-detect", false);
     setValue("nps-arc-manual-stage", arcSettings.manualStage || "");
     refreshNarrativeArcDisplay();
 
@@ -415,7 +418,7 @@ function refreshNarrativeArcDisplay() {
         const text = visible.slice(-30).map(function (m) { return (m.is_user ? "User" : "Character") + ": " + m.mes; }).join("\n");
         const stage = detectNarrativeStage(text);
         const stageInfo = narrativeStages.find(function (s) { return s.id === stage; });
-        stageEl.textContent = stageInfo ? stageInfo.name + " (" + stageInfo.nameEn + ")" : "-";
+        stageEl.textContent = stageInfo ? stageInfo.name + " (" + stageInfo.nameEn + ")" : "자동 단정 안 함 · 필요하면 수동 지정";
         stageEl.className = "nps-arc-stage nps-arc-" + stage;
     } catch (e) {
         stageEl.textContent = "-";
@@ -781,7 +784,7 @@ function saveProfile(name) {
 
     // 프로필 불러올 때 제외하고 복사
     const snapshot = {};
-    const excludeKeys = ["settingsProfiles", "negativeFeedbackKeywords"];
+    const excludeKeys = ["settingsProfiles", "negativeFeedbackKeywords", "feedbackRecords", "legacyFeedbackKeywords", "apiKey"];
     for (let key in settings) {
         if (Object.prototype.hasOwnProperty.call(settings, key) && excludeKeys.indexOf(key) < 0) {
             const val = settings[key];
@@ -803,19 +806,23 @@ function loadProfile(index) {
     const profile = profiles[index];
     const preserved = {
         settingsProfiles: settings.settingsProfiles,
-        negativeFeedbackKeywords: settings.negativeFeedbackKeywords || []
+        negativeFeedbackKeywords: settings.negativeFeedbackKeywords || [],
+        feedbackRecords: settings.feedbackRecords || [],
+        apiKey: settings.apiKey || ""
     };
 
     for (let key in profile.data) {
-        if (Object.prototype.hasOwnProperty.call(profile.data, key)) {
+        if (Object.prototype.hasOwnProperty.call(profile.data, key) && Object.prototype.hasOwnProperty.call(defaultSettings, key) && !["apiKey", "feedbackRecords", "settingsProfiles"].includes(key)) {
             settings[key] = typeof profile.data[key] === "object" && profile.data[key] !== null
-                ? JSON.parse(JSON.stringify(profile.data[key])) : profile.data[key];
+                ? (Array.isArray(profile.data[key]) ? JSON.parse(JSON.stringify(profile.data[key])) : { ...defaultSettings[key], ...settings[key], ...JSON.parse(JSON.stringify(profile.data[key])) }) : profile.data[key];
         }
     }
 
     // 보존값 복원
     settings.settingsProfiles = preserved.settingsProfiles;
     settings.negativeFeedbackKeywords = preserved.negativeFeedbackKeywords;
+    settings.feedbackRecords = preserved.feedbackRecords;
+    settings.apiKey = preserved.apiKey;
 
     saveSettings();
     updatePopupUIFromSettings();
@@ -989,7 +996,9 @@ export function displaySuggestionMessage(suggestions) {
 
     // Perf 6: requestAnimationFrame으로 다음 페인트에 DOM 삽입
     requestAnimationFrame(function () {
+        if (messageDiv.id !== state.currentSuggestionMessageId) return;
         chatElement.appendChild(fragment);
+        decorateCandidates(messageDiv);
         scrollToBottom();
     });
 }
@@ -1020,6 +1029,7 @@ export function displayPreviewMessage(previews) {
     messageDiv.addEventListener("click", handlePreviewAction);
 
     requestAnimationFrame(function () {
+        if (messageDiv.id !== state.currentSuggestionMessageId) return;
         chatElement.appendChild(fragment);
         scrollToBottom();
     });
@@ -1230,28 +1240,12 @@ async function handleSuggestionAction(e) {
             if (_callbacks.showSuggestions) _callbacks.showSuggestions(false, true);
             break;
         }
+        case "feedback-positive": {
+            openFeedback(item, "positive");
+            break;
+        }
         case "feedback-negative": {
-            // v1.7.0: "이건 아니야" 키워드를 추출 후 저장함
-            if (suggestion) {
-                const keywords = suggestion.replace(/[^\w\uAC00-\uD7A3\u3040-\u30FF\u4E00-\u9FFF]/g, " ")
-                    .split(/\s+/).filter(function (w) { return w.length > 2; }).slice(0, 5);
-                if (!settings.negativeFeedbackKeywords) settings.negativeFeedbackKeywords = [];
-                keywords.forEach(function (kw) {
-                    if (settings.negativeFeedbackKeywords.indexOf(kw) < 0) {
-                        settings.negativeFeedbackKeywords.push(kw);
-                    }
-                });
-                // 최대 30개만 유지
-                if (settings.negativeFeedbackKeywords.length > 30) {
-                    settings.negativeFeedbackKeywords = settings.negativeFeedbackKeywords.slice(-30);
-                }
-                saveSettings();
-                if (item) {
-                    item.classList.add("nps-feedback-rejected");
-                    item.style.opacity = "0.4";
-                }
-                toastr.info("키워드 반영됨. 유사한 전개가 이후 제외됩니다.");
-            }
+            openFeedback(item, "negative");
             break;
         }
         case "merge": {
@@ -1481,8 +1475,8 @@ export function bindPopupEvents() {
     const numberSettings = [
         { id: "nps-popup-sentence-count", key: "sentenceCount", min: 1, max: 10 },
         { id: "nps-popup-suggestion-count", key: "suggestionCount", min: 1, max: 10 },
-        { id: "nps-popup-max-tokens", key: "maxTokens", min: 100, max: 4000 },
-        { id: "nps-popup-max-context", key: "maxContextTokens", min: 1000, max: 128000 },
+        { id: "nps-popup-max-tokens", key: "maxTokens", min: 128, max: 32768 },
+        { id: "nps-popup-max-context", key: "maxContextTokens", min: 2048, max: 262144 },
         { id: "nps-popup-compression-threshold", key: "compressionThreshold", min: 10, max: 100 },
         { id: "nps-popup-auto-suggest-delay", key: "autoSuggestDelay", min: 500, max: 10000 }
     ];
@@ -1923,7 +1917,7 @@ export function bindPopupEvents() {
     if (exportBtn) {
         exportBtn.addEventListener("click", function () {
             const settings = extension_settings[extensionName];
-            const json = JSON.stringify(settings, null, 2);
+            const json = JSON.stringify(settings, (key, value) => key === "apiKey" ? undefined : value, 2);
             const blob = new Blob([json], { type: "application/json" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
@@ -1954,7 +1948,12 @@ export function bindPopupEvents() {
                     for (let key in imported) {
                         if (Object.prototype.hasOwnProperty.call(imported, key) &&
                             Object.prototype.hasOwnProperty.call(defaultSettings, key)) {
-                            current[key] = imported[key];
+                            const value = imported[key];
+                            const baseline = defaultSettings[key];
+                            if (Array.isArray(baseline)) { if (Array.isArray(value)) current[key] = value; }
+                            else if (baseline && typeof baseline === "object") {
+                                if (value && typeof value === "object" && !Array.isArray(value)) current[key] = { ...baseline, ...current[key], ...value };
+                            } else if (typeof value === typeof baseline) current[key] = value;
                         }
                     }
                     saveSettings();

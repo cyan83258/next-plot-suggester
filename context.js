@@ -1,371 +1,197 @@
-/**
- * 다음 전개 추천 확장 프로그램 - 컨텍스트 수집
- * (prompt.js에서 분리)
- *
- * 컨텍스트 소스 프로그레시브 로딩, 해시 diff, 프롬프트 압축
- * 월드 인포 병렬 로드 최적화 (Promise.all)
- */
-import { extension_settings, getContext } from "../../../extensions.js";
-import { extensionName, defaultSettings } from "./constants.js";
+/** Budgeted, inspectable context. All non-verbatim messages enter the excerpt pool. */
+import { getContext } from "../../../extensions.js";
+import { selected_world_info, loadWorldInfo } from "../../../world-info.js";
 import { state } from "./state.js";
-import { log, estimateTokens, simpleHash } from "./utils.js";
-import { hasContextChanged } from "./cache.js";
+import { estimateTokens } from "./utils.js";
+import { messages, storyId, sceneId, validMemory, digest } from "./story.js";
 
-// ═══════════════════════════════════════════
-// 컨텍스트 소스 프로그레시브 로딩 (해시 diff)
-// ═══════════════════════════════════════════
-
-/**
- * 컨텍스트 소스를 프로그레시브하게 로드
- * - 해시가 변경되지 않은 소스는 캐시된 데이터 재사용
- * - 변경된 소스만 다시 로드
- */
-export async function loadContextSource(sourceName, loader) {
+const sourceCache = new Map();
+export function clearContextCache() { sourceCache.clear(); }
+export async function loadContextSource(name, loader, revision = state.contextRevision || 0) {
+    const key = `${storyId()}:${name}`; // Explicit lore/settings events clear this cache; new messages reuse loaded books.
+    if (sourceCache.has(key) && Date.now() - sourceCache.get(key).at > 60000) sourceCache.delete(key);
+    if (!sourceCache.has(key)) {
+        if (sourceCache.size > 30) sourceCache.clear();
+        const promise = Promise.resolve().then(loader).catch(error => { sourceCache.delete(key); throw error; });
+        sourceCache.set(key, { promise, at: Date.now() });
+    }
+    return sourceCache.get(key).promise;
+}
+export async function tokenCount(text) {
     try {
-        const data = await loader();
-        if (!data) {
-            state.contextCache[sourceName] = { data: null, hash: null };
-            return "";
+        const counter = getContext().getTokenCountAsync;
+        if (counter) {
+            const count = await counter(text, 0);
+            if (Number.isFinite(count) && count >= 0) return { count, method: "SillyTavern tokenizer" };
         }
-
-        const newHash = simpleHash(data.substring(0, 500));
-        const cached = state.contextCache[sourceName];
-
-        if (cached && cached.hash === newHash && cached.data) {
-            log(sourceName + ": unchanged (hash match), reusing cache");
-            return cached.data;
+    } catch { /* offline tokenizer fallback */ }
+    return { count: estimateTokens(text), method: "문자 수 기반 추정" };
+}
+export function trimBudget(text, budget, tail = false) {
+    if (budget <= 0) return "";
+    if (estimateTokens(text) <= budget) return text;
+    let low = 0, high = text.length;
+    while (low < high) {
+        const mid = Math.ceil((low + high) / 2);
+        const part = tail ? text.slice(-mid) : text.slice(0, mid);
+        if (estimateTokens(part + " …[일부 생략]") <= budget) low = mid;
+        else high = mid - 1;
+    }
+    return low ? (tail ? "[앞부분 생략]… " + text.slice(-low) : text.slice(0, low) + " …[일부 생략]") : "";
+}
+export function relevantScore(text, query) {
+    const terms = new Set((query.slice(-12000).toLowerCase().match(/[가-힣a-z0-9]{2,}/g) || []).slice(-80));
+    const lower = text.toLowerCase();
+    let score = 0;
+    for (const term of terms) if (lower.includes(term)) score++;
+    return score;
+}
+export function packChat(sourceMessages, budget, compression = true, threshold = 20) {
+    if (!sourceMessages.length || budget <= 0) return { text: "", recent: [], excerpts: [], omitted: sourceMessages.map(m => m.id), partial: [] };
+    const useCompression = compression && sourceMessages.length > threshold;
+    const recentBudget = useCompression ? Math.floor(budget * 0.65) : budget;
+    const recent = [], partial = [];
+    let used = 0;
+    for (let i = sourceMessages.length - 1; i >= 0; i--) {
+        const m = sourceMessages[i], full = `[M${m.id}] ${m.role}: ${m.text}`;
+        if (used + estimateTokens(full) > recentBudget) {
+            if (!recent.length) {
+                const clipped = trimBudget(m.text, Math.max(0, recentBudget - estimateTokens(`[M${m.id}] ${m.role}: `) - 20), true);
+                if (clipped) { recent.unshift({ ...m, rendered: `[M${m.id}] ${m.role}: ${clipped}` }); partial.push(m.id); used += estimateTokens(recent[0].rendered); }
+            }
+            break;
         }
-
-        state.contextCache[sourceName] = { data, hash: newHash };
-        await hasContextChanged(sourceName, newHash);
-        log(sourceName + ": loaded fresh data");
-        return data;
-    } catch (e) {
-        log("Failed to load " + sourceName + ":", e.message);
-        return "";
+        recent.unshift({ ...m, rendered: full }); used += estimateTokens(full);
     }
+    const recentIds = new Set(recent.map(m => m.id));
+    const older = sourceMessages.filter(m => !recentIds.has(m.id) || partial.includes(m.id));
+    const query = sourceMessages.slice(-3).map(m => m.text).join(" ");
+    const pool = older.flatMap(m => m.text.split(/(?<=[.!?。！？])\s+|\n+/).filter(s => s.trim().length >= 5).map((text, order) => ({ id: m.id, role: m.role, text: text.trim(), order, score: relevantScore(text, query) + m.id / (sourceMessages.at(-1).id + 1) })));
+    const terms = [...new Set((query.slice(-12000).toLowerCase().match(/[가-힣a-z0-9]{2,}/g) || []).slice(-80))];
+    const frequency = new Map(terms.map(term => [term, pool.filter(p => p.text.toLowerCase().includes(term)).length]));
+    for (const p of pool) p.score = terms.reduce((score, term) => score + (p.text.toLowerCase().includes(term) ? Math.log(1 + pool.length / (1 + frequency.get(term))) : 0), 0) + p.id / (sourceMessages.at(-1).id + 1);
+    pool.sort((a, b) => b.score - a.score);
+    const excerpts = [];
+    const selectedText = new Set(), perMessage = new Map();
+    let remaining = Math.max(0, budget - used - 65);
+    if (useCompression) for (const p of pool) {
+        if (remaining < 35) break;
+        if (selectedText.has(p.text) || (perMessage.get(p.id) || 0) >= 2) continue;
+        const full = `[M${p.id}] ${p.role}: ${p.text}`;
+        const rendered = trimBudget(full, Math.min(remaining, 180));
+        if (!rendered) continue;
+        excerpts.push({ ...p, rendered }); remaining -= estimateTokens(rendered) + 2;
+        selectedText.add(p.text); perMessage.set(p.id, (perMessage.get(p.id) || 0) + 1);
+    }
+    excerpts.sort((a, b) => a.id - b.id || a.order - b.order);
+    const represented = new Set([...recent.map(m => m.id), ...excerpts.map(m => m.id)]);
+    return {
+        text: (excerpts.length ? "Earlier source excerpts (incomplete, NOT a full summary):\n" + excerpts.map(m => m.rendered).join("\n") + "\n\n" : "") + "Recent story (chronological):\n" + recent.map(m => m.rendered).join("\n\n"),
+        recent: recent.map(m => m.id), excerpts: [...new Set(excerpts.map(m => m.id))], partial,
+        omitted: sourceMessages.filter(m => !represented.has(m.id)).map(m => m.id),
+    };
 }
-
-// ═══════════════════════════════════════════
-// 채팅 히스토리 (토큰 인식 동적 수집)
-// ═══════════════════════════════════════════
-
-export function getChatHistory(maxTokenBudget) {
-    const context = getContext();
-    const chatHistory = context.chat || [];
-    const visibleMessages = chatHistory.filter(msg => msg.is_system !== true);
-    const settings = extension_settings[extensionName];
-
-    if (!maxTokenBudget) {
-        maxTokenBudget = (settings.maxContextTokens || 4000) * 0.6;
-    }
-
-    const useCompression = settings.enableCompression !== false;
-    const compressionThreshold = settings.compressionThreshold || 20;
-
-    if (useCompression && visibleMessages.length > compressionThreshold) {
-        return getCompressedChatHistory(visibleMessages, maxTokenBudget, compressionThreshold);
-    }
-
-    const collected = [];
-    let totalTokens = 0;
-
-    for (let i = visibleMessages.length - 1; i >= 0; i--) {
-        const msg = visibleMessages[i];
-        const role = msg.is_user ? "User" : (msg.name || "Character");
-        const text = role + ": " + msg.mes;
-        const tokens = estimateTokens(text);
-
-        if (totalTokens + tokens > maxTokenBudget && collected.length > 0) break;
-        collected.unshift(text);
-        totalTokens += tokens;
-    }
-
-    log("Chat history: " + collected.length + " msgs, ~" + totalTokens + " tokens (budget: " + maxTokenBudget + ")");
-    return collected.join("\n\n");
+export function getChatHistory(budget = 2400) { return packChat(messages(), budget).text; }
+export function getCharacterDescription(ctx = getContext()) {
+    const indices = ctx.groupId ? (ctx.groups?.find(g => g.id === ctx.groupId)?.members || []).map(avatar => ctx.characters.findIndex(c => c.avatar === avatar)) : [ctx.characterId];
+    return indices.map(id => ctx.characters?.[id]).filter(Boolean).map(c => [c.name, c.description || c.data?.description, c.personality || c.data?.personality, c.scenario || c.data?.scenario].filter(Boolean).join("\n")).join("\n\n");
 }
-
-/**
- * 압축된 채팅 히스토리 빌드
- * - 최근 메시지는 원문 그대로 유지 (최대 예산의 70%)
- * - 오래된 메시지는 추출 요약으로 압축 (나머지 30%)
- */
-function getCompressedChatHistory(visibleMessages, maxTokenBudget, recentCount) {
-    const recentBudget = Math.floor(maxTokenBudget * 0.7);
-    const summaryBudget = Math.floor(maxTokenBudget * 0.3);
-
-    const recentMessages = [];
-    let recentTokens = 0;
-    const recentStartIdx = Math.max(0, visibleMessages.length - recentCount);
-
-    for (let i = visibleMessages.length - 1; i >= recentStartIdx; i--) {
-        const msg = visibleMessages[i];
-        const role = msg.is_user ? "User" : (msg.name || "Character");
-        const text = role + ": " + msg.mes;
-        const tokens = estimateTokens(text);
-
-        if (recentTokens + tokens > recentBudget && recentMessages.length > 0) break;
-        recentMessages.unshift(text);
-        recentTokens += tokens;
-    }
-
-    const olderMessages = visibleMessages.slice(0, recentStartIdx);
-    const summary = compressMessages(olderMessages, summaryBudget);
-
-    const parts = [];
-    if (summary) {
-        parts.push("[Earlier Context — Compressed Summary]\n" + summary + "\n[/Earlier Context]");
-    }
-    if (recentMessages.length > 0) {
-        parts.push("[Recent Messages — Verbatim]\n" + recentMessages.join("\n\n") + "\n[/Recent Messages]");
-    }
-
-    const totalTokens = estimateTokens(parts.join("\n\n"));
-    log("Compressed history: " + olderMessages.length + " old msgs → summary, " + recentMessages.length + " recent msgs verbatim, ~" + totalTokens + " tokens (budget: " + maxTokenBudget + ")");
-    return parts.join("\n\n");
+export function getPersonaDescription(ctx = getContext()) { return ctx.persona_description || ctx.powerUserSettings?.persona_description || ""; }
+export function getScenarioSummary(ctx = getContext()) {
+    const data = ctx.chatMetadata?.scenarioSummary || ctx.chatMetadata?.["Scenario-Summarizer"];
+    if (data?.summaries) return Object.values(data.summaries).map(s => s?.content).filter(Boolean).join("\n\n");
+    const external = globalThis.SummarizerDebug?.getSummaryData?.();
+    return external?.chatId === ctx.chatId && external?.summaries ? Object.values(external.summaries).map(s => s?.content).filter(Boolean).join("\n\n") : "";
 }
-
-/**
- * 추출 요약: 오래된 메시지에서 핵심 문장만 추출 (로컬 처리)
- */
-function compressMessages(messages, tokenBudget) {
-    if (!messages || messages.length === 0) return "";
-
-    const speakers = new Set();
-    const allSentences = [];
-
-    messages.forEach((msg, msgIdx) => {
-        const role = msg.is_user ? "User" : (msg.name || "Character");
-        speakers.add(role);
-
-        const sentences = msg.mes.split(/(?<=[.!?。！？])\s+|(?<=\n)/);
-        sentences.forEach(sentence => {
-            const trimmed = sentence.trim();
-            if (trimmed.length < 5) return;
-
-            let score = 0;
-            if (/했다|갔다|왔다|보았|만났|발견|도착|떠났|돌아|죽|싸우|공격|도망|did|went|came|saw|found|arrived|left|died|fought|attacked|fled/i.test(trimmed)) score += 3;
-            if (/울었|웃었|놀랐|두려|화가|기뻐|슬프|사랑|미워|cried|laughed|surprised|feared|angry|happy|sad|loved/i.test(trimmed)) score += 2;
-            if (/"|"|「|」|『|』|"/.test(trimmed)) score += 1;
-            if (/장소|방|거리|도시|숲|다음 날|아침|저녁|밤|place|room|morning|evening|night|next day/i.test(trimmed)) score += 2;
-            if (/\?|？/.test(trimmed)) score += 1;
-
-            allSentences.push({ text: role + ": " + trimmed, score, position: msgIdx });
-        });
+export function getAUWorldBuilderSettings(snap) {
+    const data = snap.auData;
+    return data ? [data.worldSetting, data.characterSettings?.char, data.characterSettings?.user, data.auConcept, data.genrePrompt].filter(Boolean).join("\n\n") : "";
+}
+export function captureActivatedLore(args) {
+    const entries = Array.from(args?.activated?.entries || []);
+    state.activeLore = { scene: sceneId(), story: storyId(), messages: messages(), entries: entries.filter(e => e.content).map(e => ({ content: e.content, comment: e.comment || "", uid: e.uid })) };
+}
+export async function getWorldInfoBefore(snap) {
+    const ctx = snap.context;
+    const active = state.activeLore, currentMessages = messages(ctx);
+    const scanMatches = active?.story === snap.story && currentMessages.length >= active.messages.length && currentMessages.length <= active.messages.length + 1 && active.messages.every((m, i) => currentMessages[i]?.text === m.text && currentMessages[i]?.swipe === m.swipe);
+    if (scanMatches) return { entries: active.entries, mode: "SillyTavern 직전 생성의 활성 항목" };
+    const books = new Set(selected_world_info || []);
+    if (ctx.chatMetadata?.world_info) books.add(ctx.chatMetadata.world_info);
+    const chars = ctx.groupId ? (ctx.groups?.find(g => g.id === ctx.groupId)?.members || []).map(a => ctx.characters.find(c => c.avatar === a)).filter(Boolean) : [ctx.characters?.[ctx.characterId]].filter(Boolean);
+    let entries = [];
+    for (const char of chars) {
+        entries.push(...(char.data?.character_book?.entries || []));
+        if (char.data?.extensions?.world) books.add(char.data.extensions.world);
+    }
+    const loaded = await Promise.allSettled([...books].map(name => loadContextSource(`book:${name}`, () => loadWorldInfo(name), snap.revision)));
+    for (const result of loaded) if (result.status === "fulfilled") entries.push(...Object.values(result.value?.entries || {}));
+    const query = messages(ctx).slice(-6).map(m => m.text).join("\n").toLowerCase();
+    const seen = new Set();
+    entries = entries.filter(e => {
+        if (!e?.content || e.disable || e.enabled === false || seen.has(e.content)) return false;
+        const keys = e.key || e.keys || [];
+        const primary = keys.some(k => k && query.includes(String(k).toLowerCase()));
+        const secondary = e.keysecondary || e.secondary_keys || [];
+        const matches = secondary.map(k => query.includes(String(k).toLowerCase()));
+        const logic = e.selectiveLogic ?? e.selective_logic ?? 0;
+        const secondaryOK = !e.selective || !matches.length || (logic === 1 ? !matches.every(Boolean) : logic === 2 ? !matches.some(Boolean) : logic === 3 ? matches.every(Boolean) : matches.some(Boolean));
+        if (!e.constant && !(primary && secondaryOK)) return false;
+        seen.add(e.content); return true;
     });
-
-    allSentences.sort((a, b) => b.score !== a.score ? b.score - a.score : a.position - b.position);
-
-    const selected = [];
-    let usedTokens = estimateTokens("Story so far (" + messages.length + " messages involving " + Array.from(speakers).join(", ") + "):\n");
-
-    for (let i = 0; i < allSentences.length; i++) {
-        const tokens = estimateTokens(allSentences[i].text);
-        if (usedTokens + tokens > tokenBudget) break;
-        selected.push(allSentences[i]);
-        usedTokens += tokens;
-    }
-
-    selected.sort((a, b) => a.position - b.position);
-    if (selected.length === 0) return "";
-
-    const header = "Story so far (" + messages.length + " messages involving " + Array.from(speakers).join(", ") + "):";
-    const body = selected.map(s => "• " + s.text).join("\n");
-    return header + "\n" + body;
+    entries.sort((a, b) => relevantScore(b.content, query) - relevantScore(a.content, query));
+    return { entries, mode: "현재 키워드 기반 대체 검색 (재귀·확률 등 ST 전체 활성 규칙과 다름)", failures: loaded.filter(r => r.status === "rejected").length };
 }
-
-// ═══════════════════════════════════════════
-// 개별 컨텍스트 소스 로더
-// ═══════════════════════════════════════════
-
-/** 캐릭터 설명 */
-export function getCharacterDescription() {
-    try {
-        if (typeof SillyTavern !== "undefined" && typeof SillyTavern.getContext === "function") {
-            const ctx = SillyTavern.getContext();
-            if (ctx.getCharacterCardFields) {
-                const fields = ctx.getCharacterCardFields();
-                if (fields.description) return fields.description;
-            }
-            if (ctx.characters && ctx.characterId !== undefined) {
-                const char = ctx.characters[ctx.characterId];
-                if (char?.description) return char.description;
-            }
-        }
-        const context = getContext();
-        if (context.characters && context.characterId !== undefined) {
-            const char = context.characters[context.characterId];
-            if (char?.description) return char.description;
-        }
-    } catch (e) {
-        log("Failed to get character description:", e);
+export async function collectSources(snap) {
+    const sources = snap.settings.inputSources;
+    const list = [], warnings = [];
+    const tasks = [
+        ["캐릭터", sources.charDescription, () => getCharacterDescription(snap.context)],
+        ["페르소나", sources.personaDescription, () => getPersonaDescription(snap.context)],
+        ["시나리오 요약", sources.scenarioSummary, () => getScenarioSummary(snap.context)],
+        ["AU 설정", sources.auWorldBuilder, () => getAUWorldBuilderSettings(snap)],
+    ];
+    const results = await Promise.allSettled(tasks.map(async ([name, enabled, loader]) => ({ name, text: enabled ? await loader() : "", enabled })));
+    results.forEach((r, i) => { if (r.status === "fulfilled") { if (r.value.text) list.push(r.value); else if (r.value.enabled) warnings.push(`${tasks[i][0]}: 자료 없음`); } else warnings.push(`${tasks[i][0]}: 로딩 실패`); });
+    if (sources.worldInfo) {
+        try {
+            const lore = await getWorldInfoBefore(snap);
+            warnings.push("로어북: " + lore.mode);
+            if (lore.failures) warnings.push(`로어북 ${lore.failures}개 로딩 실패`);
+            lore.entries.forEach(e => list.push({ name: "로어북 " + (e.comment || e.uid || "항목"), text: e.content }));
+        } catch { warnings.push("로어북 로딩 실패"); }
     }
-    return "";
+    const memory = validMemory(snap.context);
+    if (snap.settings.useStoryMemory) memory.items.forEach(item => list.push({ name: `기억:${item.category}`, text: `${item.text}\n${item.evidence.map(e => `[M${e.id}] ${e.quote}`).join("\n")}` }));
+    return { list, warnings, memoryCovered: memory.covered };
 }
-
-/** 페르소나 설명 */
-export function getPersonaDescription() {
-    try {
-        if (typeof SillyTavern !== "undefined" && typeof SillyTavern.getContext === "function") {
-            const ctx = SillyTavern.getContext();
-            if (ctx.getCharacterCardFields) {
-                const fields = ctx.getCharacterCardFields();
-                if (fields.persona) return fields.persona;
-            }
+export async function fitContext(instructions, snap, collected) {
+    const outputReserve = snap.settings.maxTokens;
+    const budget = snap.settings.maxContextTokens - outputReserve - 128;
+    const base = await tokenCount(instructions);
+    if (budget - base.count < 200) throw new Error("지시문과 출력 예약량이 맥락 예산을 채웠습니다. 최대 컨텍스트를 늘리거나 지시문/출력 길이를 줄여주세요.");
+    const sourceMessages = snap.settings.inputSources.chatHistory !== false ? messages(snap.context) : [];
+    let allowance = budget - base.count;
+    let prompt, report;
+    for (let attempt = 0; attempt < 9; attempt++) {
+        const chatBudget = Math.floor(allowance * (collected.list.length ? 0.62 : 0.96));
+        const packed = packChat(sourceMessages, chatBudget, snap.settings.enableCompression !== false, snap.settings.compressionThreshold);
+        const sections = [], included = [], excluded = [];
+        let left = allowance - estimateTokens(packed.text) - 35;
+        const perSource = Math.max(50, Math.floor(left / Math.max(1, Math.min(collected.list.length, 5))));
+        for (const source of collected.list) {
+            const text = trimBudget(source.text, Math.min(perSource, left - 15));
+            if (text) { const block = `[${source.name}]\n${text}`; sections.push(block); included.push({ name: source.name, tokens: estimateTokens(block), truncated: text !== source.text }); left -= estimateTokens(block) + 5; }
+            else excluded.push(source.name);
         }
-        if (typeof power_user !== "undefined" && power_user.persona_description) {
-            return power_user.persona_description;
+        prompt = instructions + "\n<story_material>\n" + sections.join("\n\n") + "\n" + packed.text + "\n</story_material>";
+        const measured = await tokenCount(prompt);
+        report = { ...packed, text: undefined, sources: included, excluded, warnings: collected.warnings, memoryCovered: collected.memoryCovered, total: measured.count, budget: snap.settings.maxContextTokens, outputReserve, method: measured.method, reserved: base.count, prompt, at: Date.now() };
+        if (measured.count <= budget) {
+            report.key = await digest({ v: 2, story: snap.story, scene: snap.scene, settings: snap.settings, connection: snap.connection, prompt });
+            return { prompt, report };
         }
-        if (window.power_user?.persona_description) {
-            return window.power_user.persona_description;
-        }
-        const context = getContext();
-        if (context.persona_description) return context.persona_description;
-    } catch (e) {
-        log("Failed to get persona description:", e);
+        allowance = Math.floor(allowance * Math.min(0.85, (budget - base.count) / Math.max(1, measured.count - base.count) * 0.93));
     }
-    return "";
-}
-
-/** World Info / Lorebook (병렬 로드 최적화 — Promise.all) */
-export async function getWorldInfoBefore() {
-    try {
-        const context = getContext();
-        const entrySet = new Set();
-        const allEntries = [];
-
-        const addEntry = (content) => {
-            if (content && !entrySet.has(content)) {
-                entrySet.add(content);
-                allEntries.push(content);
-            }
-        };
-
-        // 1. 캐릭터에 embedded lorebook
-        if (context.characters && context.characterId !== undefined) {
-            const char = context.characters[context.characterId];
-            if (char?.data?.character_book?.entries && Array.isArray(char.data.character_book.entries)) {
-                const book = char.data.character_book;
-                for (const entry of book.entries) {
-                    const isEnabled = entry.enabled === true || (entry.enabled !== false && entry.disable !== true);
-                    if (entry?.content && isEnabled) addEntry(entry.content);
-                }
-                log("Embedded lorebook:", book.entries.length, "total,", allEntries.length, "enabled");
-            }
-        }
-
-        // 2. SillyTavern loadWorldInfo — 병렬 로드
-        if (typeof SillyTavern !== "undefined" && typeof SillyTavern.getContext === "function") {
-            const ctx = SillyTavern.getContext();
-
-            if (ctx.loadWorldInfo && typeof ctx.loadWorldInfo === "function") {
-                const worldLoadPromises = [];
-
-                // 캐릭터에 연결된 lorebook
-                if (ctx.characters && ctx.characterId !== undefined) {
-                    const charCtx = ctx.characters[ctx.characterId];
-                    const worldName = charCtx?.data?.extensions?.world;
-                    if (worldName) {
-                        worldLoadPromises.push(
-                            ctx.loadWorldInfo(worldName).catch(err => {
-                                log("Failed to load char world info:", err);
-                                return null;
-                            })
-                        );
-                    }
-                }
-
-                // 전역 선택된 world info — 모두 병렬 로드
-                const selectedWorlds = window.selected_world_info || [];
-                for (const worldName of selectedWorlds) {
-                    worldLoadPromises.push(
-                        ctx.loadWorldInfo(worldName).catch(err => {
-                            log("Failed to load selected world info:", worldName, err);
-                            return null;
-                        })
-                    );
-                }
-
-                // 병렬 실행 후 결과 수집
-                const worldResults = await Promise.all(worldLoadPromises);
-                for (const wd of worldResults) {
-                    if (wd?.entries) {
-                        for (const uid of Object.keys(wd.entries)) {
-                            const we = wd.entries[uid];
-                            if (we?.content && we.disable !== true) addEntry(we.content);
-                        }
-                    }
-                }
-            }
-        }
-
-        if (allEntries.length > 0) {
-            log("Total world info entries:", allEntries.length);
-            return allEntries.join("\n\n");
-        }
-    } catch (e) {
-        log("Failed to get world info:", e);
-    }
-    return "";
-}
-
-/** Scenario-Summarizer 요약 */
-export function getScenarioSummary() {
-    try {
-        if (window.SummarizerDebug && typeof window.SummarizerDebug.getSummaryData === "function") {
-            const data = window.SummarizerDebug.getSummaryData();
-            if (data?.summaries) {
-                const texts = Object.keys(data.summaries).map(k => data.summaries[k]?.content).filter(Boolean);
-                if (texts.length > 0) return texts.join("\n\n");
-            }
-        }
-
-        const context = getContext();
-        if (context.chatMetadata) {
-            const ssData = context.chatMetadata.scenarioSummary || context.chatMetadata["Scenario-Summarizer"];
-            if (ssData?.summaries) {
-                const texts = Object.keys(ssData.summaries).map(k => ssData.summaries[k]?.content).filter(Boolean);
-                if (texts.length > 0) return texts.join("\n\n");
-            }
-        }
-
-        if (extension_settings?.["Scenario-Summarizer"]?.summaryData?.summaries) {
-            const summaries = extension_settings["Scenario-Summarizer"].summaryData.summaries;
-            const texts = Object.keys(summaries).map(k => summaries[k]?.content).filter(Boolean);
-            if (texts.length > 0) return texts.join("\n\n");
-        }
-    } catch (e) {
-        log("Failed to get scenario summary:", e);
-    }
-    return "";
-}
-
-/** AU-World-Builder 설정 */
-export function getAUWorldBuilderSettings() {
-    try {
-        const context = getContext();
-        const chatId = context.chatId;
-        if (!chatId) return "";
-
-        const auSettings = extension_settings["AU-World-Builder"];
-        if (!auSettings) return "";
-
-        const chatData = auSettings.chatData?.[chatId];
-        if (!chatData) return "";
-
-        const parts = [];
-        if (chatData.worldSetting) parts.push("[AU World Setting]\n" + chatData.worldSetting + "\n[/AU World Setting]");
-        if (chatData.characterSettings?.char) parts.push("[AU Character Setting]\n" + chatData.characterSettings.char + "\n[/AU Character Setting]");
-        if (chatData.characterSettings?.user) parts.push("[AU User Setting]\n" + chatData.characterSettings.user + "\n[/AU User Setting]");
-        if (chatData.auConcept) parts.push("[AU Concept]\n" + chatData.auConcept + "\n[/AU Concept]");
-        if (chatData.genrePrompt) parts.push("[AU Genre]\n" + chatData.genrePrompt + "\n[/AU Genre]");
-
-        if (parts.length > 0) {
-            log("AU-World-Builder data:", parts.length, "sections");
-            return parts.join("\n\n");
-        }
-    } catch (e) {
-        log("Failed to get AU-World-Builder settings:", e);
-    }
-    return "";
+    throw new Error("최종 프롬프트가 토큰 예산을 초과했습니다. 컨텍스트 예산을 늘려주세요.");
 }

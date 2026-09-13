@@ -29,6 +29,7 @@ export function createSuggestionMessageHtml(suggestions) {
         itemsHtml += '<span class="nps-suggestion-text">' + safeText + '</span>';
         itemsHtml += '</div>';
         itemsHtml += '<div class="nps-suggestion-actions">';
+        itemsHtml += '<button class="nps-action-btn" data-action="feedback-positive" title="좋아요 · 취향 기록"><i class="fa-solid fa-thumbs-up"></i></button>';
         itemsHtml += '<button class="nps-action-btn nps-copy-action" data-action="copy" data-index="' + index + '" title="복사"><i class="fa-solid fa-copy"></i></button>';
         itemsHtml += '<button class="nps-action-btn nps-send-action" data-action="send" data-index="' + index + '" title="바로 보내기"><i class="fa-solid fa-paper-plane"></i></button>';
         itemsHtml += '<button class="nps-action-btn nps-edit-action" data-action="edit" data-index="' + index + '" title="편집"><i class="fa-solid fa-pen"></i></button>';
@@ -148,8 +149,8 @@ function buildGeneralTabHtml() {
     html += '<div class="nps-setting-row"><label for="nps-popup-sentence-count">추천 당 문장 수</label><input type="number" id="nps-popup-sentence-count" min="1" max="10" value="2" class="nps-number-input"></div>';
     html += '<div class="nps-setting-row"><label for="nps-popup-suggestion-count">추천 개수</label><input type="number" id="nps-popup-suggestion-count" min="1" max="10" value="3" class="nps-number-input"></div>';
     html += '<div class="nps-setting-row"><label for="nps-popup-output-language">추천 언어</label><select id="nps-popup-output-language"><option value="ko">한국어</option><option value="en">English</option><option value="ja">日本語</option></select></div>';
-    html += '<div class="nps-setting-row"><label for="nps-popup-max-context">최대 컨텍스트 토큰</label><input type="number" id="nps-popup-max-context" min="1000" max="128000" value="4000" class="nps-number-input"></div>';
-    html += '<div class="nps-setting-row"><label for="nps-popup-json-mode">JSON 구조화 출력</label><input type="checkbox" id="nps-popup-json-mode"></div>';
+    html += '<div class="nps-setting-row"><label for="nps-popup-max-context">총 토큰 예산 (입력 + 출력 예약)</label><input type="number" id="nps-popup-max-context" min="2048" max="262144" value="8000" class="nps-number-input"></div>';
+    html += '<div class="nps-setting-row"><label for="nps-popup-json-mode">JSON 엄격 파싱 (끄면 번호 목록도 허용)</label><input type="checkbox" id="nps-popup-json-mode"></div>';
     html += '<div class="nps-setting-row"><label for="nps-popup-enable-cache">추천 캐싱</label><input type="checkbox" id="nps-popup-enable-cache"></div>';
     html += '<div class="nps-setting-row"><label for="nps-popup-enable-compression">프롬프트 압축<br><small>긴 대화에서 오래된 메시지를 자동 요약하여 토큰 절약</small></label><input type="checkbox" id="nps-popup-enable-compression"></div>';
     html += '<div class="nps-setting-row"><label for="nps-popup-compression-threshold">압축 기준 (메시지 수)<br><small>이 수 이상일 때 오래된 메시지를 요약</small></label><input type="number" id="nps-popup-compression-threshold" min="10" max="100" value="20" class="nps-number-input"></div>';
@@ -413,16 +414,16 @@ function buildPlotTabHtml() {
     // 서사 단계
     html += '<div class="nps-settings-section">';
     html += '<div class="nps-settings-section-title"><i class="fa-solid fa-stairs"></i><span>서사 단계</span></div>';
-    html += '<p class="nps-section-desc">현재 스토리가 어느 단계인지 자동 감지하거나, 직접 지정할 수 있습니다.</p>';
-    html += '<div class="nps-setting-row"><label for="nps-arc-auto-detect">자동 감지</label><input type="checkbox" id="nps-arc-auto-detect" checked></div>';
+    html += '<p class="nps-section-desc">단어 빈도로 서사 단계를 단정하지 않습니다. 필요할 때 직접 지정하세요.</p>';
+    html += '<div class="nps-setting-row"><label for="nps-arc-auto-detect">단어 기반 자동 감지 (사용 안 함)</label><input type="checkbox" id="nps-arc-auto-detect" disabled></div>';
     html += '<div class="nps-arc-display" id="nps-arc-display">';
-    html += '<span class="nps-arc-label">감지된 단계:</span>';
+    html += '<span class="nps-arc-label">판단 방식:</span>';
     html += '<span class="nps-arc-stage" id="nps-arc-detected-stage">-</span>';
     html += '</div>';
     html += '<div class="nps-setting-row">';
     html += '<label for="nps-arc-manual-stage">수동 오버라이드</label>';
     html += '<select id="nps-arc-manual-stage">';
-    html += '<option value="">자동 감지 사용</option>';
+    html += '<option value="">단계 강제 안 함</option>';
     narrativeStages.forEach(s => {
         html += '<option value="' + s.id + '">' + s.name + ' (' + s.nameEn + ')</option>';
     });
@@ -459,7 +460,7 @@ function buildPlotTabHtml() {
     // 추천 스펙트럼
     html += '<div class="nps-settings-section">';
     html += '<div class="nps-settings-section-title"><i class="fa-solid fa-layer-group"></i><span>추천 스펙트럼</span></div>';
-    html += '<div class="nps-setting-row"><label for="nps-spectrum-enabled">스펙트럼 모드<br><small>각 추천에 [안전]/[의외]/[극적] 태그 부여</small></label><input type="checkbox" id="nps-spectrum-enabled" checked></div>';
+    html += '<div class="nps-setting-row"><label for="nps-spectrum-enabled">스펙트럼 모드<br><small>인물 선택 / 복선 회수 / 관계 변화로 구분</small></label><input type="checkbox" id="nps-spectrum-enabled" checked></div>';
     html += '</div>';
 
     // 감정 곡선
@@ -517,7 +518,7 @@ function buildPlotTabHtml() {
     html += '<p class="nps-section-desc">추천의 창의성/실험성을 조절합니다. 낮으면 안전한 전개, 높으면 파격적인 전개가 나옵니다.</p>';
     html += '<div class="nps-setting-row"><label for="nps-creativity-level">창의성</label>';
     html += '<input type="range" id="nps-creativity-level" min="1" max="10" step="1" value="5">';
-    html += '<div class="nps-pacing-labels"><span>보수적</span><span id="nps-creativity-level-val">5</span><span>실험적</span></div></div>';
+    html += '<div class="nps-pacing-labels"><span>보수적</span><span id="nps-creativity-level-val">5</span><span>뜻밖의 인과</span></div></div>';
     html += '</div>';
 
     // 조건부 규칙 (If-Then)
@@ -565,7 +566,7 @@ function buildApiTabHtml() {
     html += '<div class="nps-setting-row"><label for="nps-popup-temperature">Temperature</label>';
     html += '<input type="range" id="nps-popup-temperature" min="0" max="2" step="0.1" value="0.8">';
     html += '<span id="nps-popup-temp-value" class="nps-range-value">0.8</span></div>';
-    html += '<div class="nps-setting-row"><label for="nps-popup-max-tokens">Max Tokens</label><input type="number" id="nps-popup-max-tokens" min="100" max="4000" value="1000" class="nps-number-input"></div>';
+    html += '<div class="nps-setting-row"><label for="nps-popup-max-tokens">Max Tokens</label><input type="number" id="nps-popup-max-tokens" min="128" max="32768" value="2400" class="nps-number-input"></div>';
     html += '</div>';
 
     // API 설정

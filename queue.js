@@ -80,7 +80,9 @@ class RequestQueue {
             pending[i].reject(new DOMException(cancelMsg, "AbortError"));
         }
 
-        this.processing = false;
+        // The running task retains ownership until its finally block settles.
+        // Otherwise cancel -> enqueue can start a second request concurrently.
+        if (!this.processing) this.currentAbortController = null;
         log("Request queue cancelled:", cancelMsg);
     }
 

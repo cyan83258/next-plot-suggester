@@ -3258,3 +3258,27 @@
         font-size: 0.8em;
     }
 }
+/* v2: story controls and evidence stay below the original action row. */
+#nps-settings-popup .nps-studio { display: grid; gap: 12px; }
+.nps-studio label, .nps-feedback-form label { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.nps-studio textarea, .nps-context-report textarea, .nps-candidate-tools textarea, .nps-feedback-form textarea { width: 100%; min-height: 72px; box-sizing: border-box; color: inherit; background: var(--SmartThemeBlurTintColor, #252530); border: 1px solid var(--SmartThemeBorderColor, #666); border-radius: 6px; padding: 8px; }
+.nps-studio p, .nps-context-report p, .nps-candidate-tools p { font-size: 0.9em; line-height: 1.55; overflow-wrap: anywhere; margin: 6px 0; }
+.nps-managed-record, .nps-result-context { border-top: 1px solid var(--SmartThemeBorderColor, #666); padding: 10px 0; }
+.nps-candidate-tools, .nps-feedback-form { flex: 0 0 100%; width: 100%; box-sizing: border-box; grid-column: 1 / -1; padding: 8px 12px; }
+.nps-suggestion-item:has(.nps-candidate-tools) { flex-wrap: wrap; }
+.nps-candidate-tools summary, .nps-studio summary, .nps-result-context summary { cursor: pointer; }
+.nps-candidate-tools button, .nps-studio button, .nps-feedback-form button { cursor: pointer; color: inherit; background: var(--SmartThemeBlurTintColor, #30303b); border: 1px solid var(--SmartThemeBorderColor, #666); border-radius: 5px; padding: 6px 10px; margin: 4px; }
+.nps-studio select, .nps-studio input[type=number], .nps-feedback-form select { color: inherit; background: var(--SmartThemeBlurTintColor, #30303b); max-width: 100%; padding: 5px; }
+
+/* Match this extension's existing light panels, including dark SillyTavern themes. */
+#nps-tab-studio { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+#nps-settings-popup .nps-studio { color: #274b65; min-width: 0; }
+.nps-studio > *, .nps-studio label > * { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.nps-studio label { display: flex; flex-wrap: wrap; }
+.nps-studio select { flex: 1 1 180px; width: 100%; }
+.nps-candidate-tools, .nps-feedback-form { color: #274b65; }
+.nps-studio textarea, .nps-studio select, .nps-studio input[type=number], .nps-candidate-tools textarea, .nps-feedback-form textarea, .nps-feedback-form select, .nps-context-report textarea { color: #24475f; background: #f5faff; border-color: #b6cfdc; }
+.nps-studio button, .nps-candidate-tools button, .nps-feedback-form button { color: #214c69; background: #edf7ff; border-color: #b6cfdc; }
+.nps-result-context { background: #f5faff; color: #274b65; padding: 12px; border-radius: 8px; }
+.nps-context-report { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .nps-studio label { align-items: flex-start; } .nps-studio select { flex-basis: 100%; } .nps-candidate-tools, .nps-feedback-form { padding: 8px; } }

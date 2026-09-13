@@ -1,265 +1,129 @@
-/**
- * 다음 전개 추천 확장 프로그램 - API 통신
- * Perf 3: AbortController 지원
- * Perf 8: 에러 리트라이 (exponential backoff)
- */
-import { extension_settings } from "../../../extensions.js";
+/** Request-local API parameters. Never changes the user's global generation preset. */
+import { getContext } from "../../../extensions.js";
+import { getRequestHeaders, eventSource, event_types } from "../../../../script.js";
 import { SECRET_KEYS, secret_state } from "../../../secrets.js";
-import { getRequestHeaders } from "../../../../script.js";
-import { extensionName } from "./constants.js";
-import { log } from "./utils.js";
+import { createGenerationParameters } from "../../../openai.js";
+import { settingsSnapshot } from "./story.js";
+import { state } from "./state.js";
 
-/**
- * 에러 리트라이 래퍼
- * - 인증 오류(401/403)는 즉시 실패
- * - AbortError는 재시도하지 않음
- * - 그 외에는 최대 2회 exponential backoff 재시도
- */
-async function withRetry(fn, maxRetries = 2, signal = null) {
-    let lastError;
-    for (let i = 0; i <= maxRetries; i++) {
-        // 취소 확인
-        if (signal && signal.aborted) {
-            throw new DOMException(signal.reason || "요청이 취소되었습니다.", "AbortError");
-        }
-        try {
-            return await fn();
-        } catch (error) {
-            lastError = error;
-            // AbortError는 재시도 안 함
-            if (error.name === "AbortError") throw error;
-            const msg = error.message || "";
-            if (msg.includes("401") || msg.includes("403") || msg.includes("API 키")) {
-                throw error;
-            }
-            if (i < maxRetries) {
-                const delay = Math.pow(2, i) * 1000;
-                log("API retry " + (i + 1) + "/" + maxRetries + " in " + delay + "ms:", msg);
-                await new Promise(resolve => setTimeout(resolve, delay));
-            }
-        }
-    }
-    throw lastError;
+export function abortError() { return new DOMException("생성이 취소되었습니다.", "AbortError"); }
+function check(signal) { if (signal?.aborted) throw abortError(); }
+export function delay(ms, signal) {
+    return new Promise((resolve, reject) => {
+        check(signal);
+        const cancel = () => { clearTimeout(timer); signal?.removeEventListener("abort", cancel); reject(abortError()); };
+        const timer = setTimeout(() => { signal?.removeEventListener("abort", cancel); resolve(); }, ms);
+        signal?.addEventListener("abort", cancel, { once: true });
+    });
 }
-
-/** API 요청 보내기 (리트라이 + AbortController 포함) */
-export async function sendApiRequest(prompt, signal) {
-    const settings = extension_settings[extensionName];
-    return withRetry(async function () {
-        if (settings.apiType === "current") {
-            return await generateWithCurrentApi(prompt, signal);
-        } else if (settings.apiType === "profile") {
-            return await generateWithProfileApi(prompt, signal);
-        } else {
-            return await generateWithCustomApi(prompt, signal);
+export async function withRetry(fn, signal, maxRetries = 2) {
+    for (let i = 0; ; i++) {
+        check(signal);
+        try { return await fn(); } catch (error) {
+            check(signal);
+            const retryable = error instanceof TypeError || [408, 429, 500, 502, 503, 504].includes(error.status);
+            if (error.name === "AbortError" || !retryable || i >= maxRetries) throw error;
+            await delay(Math.min(30000, error.retryAfter || 1000 * 2 ** i + Math.random() * 300), signal);
         }
-    }, 2, signal);
+    }
 }
-
-/** 현재 연결된 API로 생성 */
-async function generateWithCurrentApi(prompt, signal) {
-    const settings = extension_settings[extensionName];
-    let result = "";
-
-    if (typeof SillyTavern !== "undefined" && typeof SillyTavern.getContext === "function") {
-        const ctx = SillyTavern.getContext();
-        if (ctx.generateRaw) {
-            // AbortController 취소 확인
-            if (signal && signal.aborted) throw new DOMException("취소됨", "AbortError");
-            result = await ctx.generateRaw({
-                prompt: prompt,
-                maxContext: null,
-                quietToLoud: false,
-                skipWIAN: true,
-                skipAN: true,
-                signal: signal
-            });
-        } else if (ctx.generateQuietPrompt) {
-            if (signal && signal.aborted) throw new DOMException("취소됨", "AbortError");
-            result = await ctx.generateQuietPrompt(prompt, false, false);
-        }
-    }
-
-    if (!result && typeof generateQuietPrompt === "function") {
-        if (signal && signal.aborted) throw new DOMException("취소됨", "AbortError");
-        result = await generateQuietPrompt(prompt, false, false);
-    }
-
-    if (!result) {
-        const fetchOptions = {
-            method: "POST",
-            headers: getRequestHeaders(),
-            body: JSON.stringify({
-                prompt: prompt,
-                max_tokens: settings.maxTokens || 1000,
-                temperature: settings.temperature || 0.8
-            })
-        };
-        if (signal) fetchOptions.signal = signal;
-
-        const response = await fetch("/api/backends/chat-completions/generate", fetchOptions);
-        if (!response.ok) {
-            throw new Error("API request failed: " + response.status);
-        }
-        const data = await response.json();
-        result = data.response || data.text || data.content || "";
-    }
-
-    return result;
+export function extractResponse(data) {
+    const content = data.choices?.[0]?.message?.content;
+    if (typeof content === "string") return content;
+    if (Array.isArray(content)) return content.map(p => p.text || "").join("");
+    if (Array.isArray(data.content)) return data.content.filter(p => p.type === "text").map(p => p.text || "").join("");
+    const google = data.candidates?.[0]?.content;
+    if (google?.parts) return google.parts.map(p => p.thought ? "" : p.text || "").join("");
+    if (typeof google === "string") return google;
+    if (Array.isArray(data.message?.content)) return data.message.content.map(p => p.text || "").join("");
+    for (const text of [data.response, data.text, data.content, data.generations?.[0]?.text, data.choices?.[0]?.text]) if (typeof text === "string") return text;
+    return "";
 }
-
-/** 선택한 LLM Provider로 직접 API 호출 */
-async function generateWithProfileApi(prompt, signal) {
-    const settings = extension_settings[extensionName];
-    const provider = settings.llmProvider || "openai";
-    const model = settings.llmModel || "";
-    const temperature = settings.temperature || 0.8;
-
-    const messages = [{ role: "user", content: prompt }];
-    const parameters = {
-        model: model,
-        messages: messages,
-        temperature: temperature,
-        stream: false,
-        chat_completion_source: provider
-    };
-
-    let apiKey;
-    switch (provider) {
-        case "openai":
-            apiKey = secret_state[SECRET_KEYS.OPENAI];
-            parameters.chat_completion_source = "openai";
-            break;
-        case "claude":
-            apiKey = secret_state[SECRET_KEYS.CLAUDE];
-            parameters.chat_completion_source = "claude";
-            break;
-        case "google":
-            apiKey = secret_state[SECRET_KEYS.MAKERSUITE];
-            parameters.chat_completion_source = "makersuite";
-            break;
-        case "cohere":
-            apiKey = secret_state[SECRET_KEYS.COHERE];
-            parameters.chat_completion_source = "cohere";
-            break;
-        default:
-            throw new Error("지원하지 않는 프로바이더: " + provider);
-    }
-
-    if (!apiKey) {
-        throw new Error(provider.toUpperCase() + " API 키가 설정되어 있지 않습니다.");
-    }
-
-    log("Provider: " + provider + ", model: " + model + ", temp: " + temperature);
-
-    const fetchOptions = {
-        method: "POST",
-        headers: Object.assign({}, getRequestHeaders(), { "Content-Type": "application/json" }),
-        body: JSON.stringify(parameters)
-    };
-    if (signal) fetchOptions.signal = signal;
-
-    const response = await fetch("/api/backends/chat-completions/generate", fetchOptions);
-
+async function request(url, body, headers, signal) {
+    const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal });
     if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error("API 요청 실패: " + response.status + " - " + errorText);
+        const error = new Error(`API 요청 실패 (${response.status})`);
+        error.status = response.status;
+        const retry = response.headers.get("Retry-After");
+        error.retryAfter = retry ? (/^\d+$/.test(retry) ? Number(retry) * 1000 : Math.max(0, Date.parse(retry) - Date.now())) : 0;
+        throw error;
     }
-
     const data = await response.json();
-    let result = "";
-
-    switch (provider) {
-        case "openai":
-            result = data.choices?.[0]?.message?.content?.trim() || "";
-            break;
-        case "claude":
-            result = data.content?.[0]?.text?.trim() || "";
-            break;
-        case "google":
-            result = data.candidates?.[0]?.content?.trim() ||
-                     data.choices?.[0]?.message?.content?.trim() ||
-                     data.text?.trim() || "";
-            break;
-        case "cohere":
-            result = data.message?.content?.[0]?.text?.trim() ||
-                     data.generations?.[0]?.text?.trim() ||
-                     data.text?.trim() || "";
-            break;
-        default:
-            result = data.response || data.text || data.content || "";
-    }
-
-    if (!result) throw new Error("API 응답이 비어있습니다.");
-    return result;
+    if (data.choices?.[0]?.finish_reason === "length" || data.stop_reason === "max_tokens" || data.candidates?.[0]?.finishReason === "MAX_TOKENS") throw new Error("출력이 토큰 한도에서 잘렸습니다. 출력 토큰을 늘려주세요.");
+    const text = extractResponse(data).trim();
+    if (!text) throw new Error("API 응답이 비어 있습니다.");
+    return text;
 }
-
-/** 커스텀 API로 생성 */
-async function generateWithCustomApi(prompt, signal) {
-    const settings = extension_settings[extensionName];
-    if (!settings.apiEndpoint) throw new Error("API endpoint not configured");
-
-    const headers = { "Content-Type": "application/json" };
-    if (settings.apiKey) {
-        headers["Authorization"] = "Bearer " + settings.apiKey;
-    }
-
-    const body = {
-        model: settings.apiModel || "gpt-3.5-turbo",
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: settings.maxTokens || 1000,
-        temperature: settings.temperature || 0.8
-    };
-
-    const fetchOptions = {
-        method: "POST",
-        headers: headers,
-        body: JSON.stringify(body)
-    };
-    if (signal) fetchOptions.signal = signal;
-
-    const response = await fetch(settings.apiEndpoint, fetchOptions);
-
-    if (!response.ok) throw new Error("Custom API request failed: " + response.status);
-
-    const data = await response.json();
-    if (data.choices && data.choices[0]) {
-        return data.choices[0].message?.content || data.choices[0].text || "";
-    }
-    return data.response || data.text || data.content || "";
-}
-
-/** API 연결 테스트 */
-export async function testApiConnection() {
+export async function sendApiRequest(prompt, signal, settings = settingsSnapshot()) {
+    check(signal);
+    const start = performance.now();
+    state.effectiveApi = { type: settings.apiType, model: "", temperature: settings.temperature, maxTokens: settings.maxTokens, cancel: "요청 중단 지원" };
     try {
-        const testPrompt = "Say 'API connection successful!' in exactly those words.";
-        const response = await sendApiRequest(testPrompt);
-        if (response && response.length > 0) {
-            toastr.success("API 연결 테스트 성공!");
-            updateApiStatus(true);
-            return true;
-        } else {
-            toastr.error("API 응답이 비어있습니다.");
-            updateApiStatus(false);
-            return false;
-        }
-    } catch (error) {
-        toastr.error("API 연결 테스트 실패: " + error.message);
-        updateApiStatus(false);
-        return false;
-    }
+        return await withRetry(async () => {
+            if (settings.apiType === "current") return current(prompt, signal, settings);
+            let body = { model: settings.apiType === "profile" ? settings.llmModel : settings.apiModel, messages: [{ role: "user", content: prompt }], temperature: settings.temperature, max_tokens: settings.maxTokens, stream: false };
+            let url = settings.apiEndpoint;
+            let headers = { "Content-Type": "application/json" };
+            if (settings.apiType === "profile") {
+                const provider = settings.llmProvider;
+                const keys = { openai: SECRET_KEYS.OPENAI, claude: SECRET_KEYS.CLAUDE, google: SECRET_KEYS.MAKERSUITE, cohere: SECRET_KEYS.COHERE };
+                if (!keys[provider] || !secret_state[keys[provider]]) throw new Error("선택한 프로바이더의 API 키가 설정되지 않았습니다.");
+                body.chat_completion_source = provider === "google" ? "makersuite" : provider;
+                const requestSettings = { ...getContext().chatCompletionSettings, chat_completion_source: body.chat_completion_source, temp_openai: settings.temperature, openai_max_tokens: settings.maxTokens, stream_openai: false };
+                const prepared = await createGenerationParameters(requestSettings, body.model, "quiet", body.messages);
+                body = { ...prepared.generate_data, stream: false };
+                url = "/api/backends/chat-completions/generate";
+                headers = getRequestHeaders();
+            } else {
+                if (!url || !body.model) throw new Error("커스텀 API 주소와 모델을 입력해 주세요.");
+                if (settings.apiKey) headers.Authorization = "Bearer " + settings.apiKey;
+            }
+            state.effectiveApi.model = body.model;
+            state.effectiveApi.temperature = body.temperature ?? "모델에서 온도 미지원";
+            return request(url, body, headers, signal);
+        }, signal);
+    } finally { state.lastApiMs = performance.now() - start; }
 }
-
-/** API 상태 표시 업데이트 */
+async function current(prompt, signal, settings) {
+    const ctx = getContext();
+    if (!ctx.generateRaw) throw new Error("현재 SillyTavern에서 generateRaw를 찾을 수 없습니다.");
+    // Installed generateRaw has no AbortSignal parameter. Keep queue ownership until it settles;
+    // cancellation discards its result instead of broadcasting a global stop to other extensions.
+    state.effectiveApi.cancel = "결과 폐기 (현재 연결의 서버 생성은 계속될 수 있음)";
+    state.effectiveApi.model = ctx.chatCompletionSettings?.model || ctx.chatCompletionSettings?.openai_model || ctx.mainApi;
+    state.effectiveApi.temperature = "현재 연결 프리셋";
+    const hook = data => {
+        // Match this exact prompt, never another concurrent request.
+        const ours = data.messages?.some(m => m.content === prompt || (Array.isArray(m.content) && m.content.some(p => p.text === prompt)));
+        if (!ours) return;
+        if (typeof data.temperature === "number") {
+            data.temperature = data.chat_completion_source === "minimax" ? Math.max(Number.EPSILON, Math.min(1, settings.temperature)) : ["claude", "cohere"].includes(data.chat_completion_source) ? Math.min(1, settings.temperature) : settings.temperature;
+            state.effectiveApi.temperature = data.temperature;
+        } else state.effectiveApi.temperature = "모델에서 온도 미지원";
+        if ("max_completion_tokens" in data) data.max_completion_tokens = settings.maxTokens;
+        else data.max_tokens = settings.maxTokens;
+        state.effectiveApi.model = data.model || state.effectiveApi.model;
+    };
+    const event = event_types.CHAT_COMPLETION_SETTINGS_READY;
+    if (event) eventSource.on(event, hook);
+    try {
+        check(signal);
+        const response = await ctx.generateRaw({ prompt, responseLength: settings.maxTokens, quietToLoud: false, trimNames: false });
+        check(signal);
+        if (typeof response !== "string" || !response.trim()) throw new Error("현재 연결의 응답이 비어 있습니다.");
+        return response;
+    } finally { if (event) eventSource.removeListener(event, hook); }
+}
+export async function testApiConnection() {
+    if (state.isGenerating) { toastr.info("생성 완료 후 연결을 시험해 주세요."); return false; }
+    try { await sendApiRequest('Return exactly {"ok":true}', null, { ...settingsSnapshot(), maxTokens: 100 }); updateApiStatus(true); return true; }
+    catch (e) { toastr.error(e.message); updateApiStatus(false); return false; }
+}
 export function updateApiStatus(connected) {
-    const statusDiv = document.getElementById("nps-api-status");
-    const indicator = document.getElementById("nps-api-status-indicator");
+    const div = document.getElementById("nps-api-status");
+    if (div) div.style.display = "flex";
     const text = document.getElementById("nps-api-status-text");
-    if (statusDiv) statusDiv.style.display = "flex";
-    if (indicator) {
-        indicator.className = "nps-api-status-indicator " + (connected ? "connected" : "disconnected");
-    }
-    if (text) {
-        text.textContent = connected ? "연결됨" : "연결 실패";
-    }
+    if (text) text.textContent = connected ? "연결됨" : "연결 실패";
+    const indicator = document.getElementById("nps-api-status-indicator");
+    if (indicator) indicator.className = "nps-api-status-indicator " + (connected ? "connected" : "disconnected");
 }

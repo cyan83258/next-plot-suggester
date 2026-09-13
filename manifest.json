@@ -1,11 +1,11 @@
 {
-    "display_name": "다음 전개 추천",
-    "loading_order": 100,
-    "requires": [],
-    "optional": [],
-    "js": "index.js",
-    "css": "style.css",
-    "author": "User",
-    "version": "1.5.0",
-    "description": "채팅 내용을 바탕으로 다음 전개를 추천해주는 확장 프로그램입니다. v1.5: 전개 유형 선택, 서사 단계 인식, 포커스 대상, 추천 스펙트럼, 감정 곡선, 페이싱 제어, 대화/서술 비율 조절."
+  "display_name": "다음 전개 추천",
+  "loading_order": 100,
+  "requires": [],
+  "optional": [],
+  "js": "index.js",
+  "css": "style.css",
+  "author": "User",
+  "version": "2.0.0",
+  "description": "근거 기반 플롯 설계, 품질 검토, 이야기 기억, 범위별 취향 피드백, 장면 조건 및 실제 입력 확인."
 }
