@@ -3282,3 +3282,4 @@
 .nps-result-context { background: #f5faff; color: #274b65; padding: 12px; border-radius: 8px; }
 .nps-context-report { min-width: 0; overflow-wrap: anywhere; }
 @media (max-width: 600px) { .nps-studio label { align-items: flex-start; } .nps-studio select { flex-basis: 100%; } .nps-candidate-tools, .nps-feedback-form { padding: 8px; } }
+.nps-suggestion-content:focus-visible, #nps-generate-btn:focus-visible, #nps-settings-popup :focus-visible, #nps-direction-popup :focus-visible, #nps-textarea-expand-popup :focus-visible { outline: 2px solid #147fa5; outline-offset: 3px; }

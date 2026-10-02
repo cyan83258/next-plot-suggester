@@ -24,7 +24,7 @@ export function createSuggestionMessageHtml(suggestions) {
         itemsHtml += '<div class="nps-suggestion-item" draggable="true" data-suggestion="' + safeAttr + '" data-index="' + index + '">';
         itemsHtml += '<input type="checkbox" class="nps-merge-checkbox" data-index="' + index + '" title="합치기에 선택">';
         itemsHtml += '<div class="nps-drag-handle" title="드래그하여 순서 변경"><i class="fa-solid fa-grip-vertical"></i></div>';
-        itemsHtml += '<div class="nps-suggestion-content" data-action="copy" data-index="' + index + '">';
+        itemsHtml += '<div class="nps-suggestion-content" role="button" tabindex="0" aria-label="추천 복사 · Ctrl+위아래로 순서 변경" data-action="copy" data-index="' + index + '">';
         itemsHtml += '<span class="nps-suggestion-number">' + (index + 1) + '</span>';
         itemsHtml += '<span class="nps-suggestion-text">' + safeText + '</span>';
         itemsHtml += '</div>';
@@ -92,7 +92,7 @@ export function createPreviewMessageHtml(previews) {
 // ═══════════════════════════════════════════
 
 export function createSettingsPopupHtml() {
-    let html = '<div id="nps-settings-popup">';
+    let html = '<div id="nps-settings-popup" role="dialog" aria-modal="true" aria-label="다음 전개 추천 설정">';
     html += '<div class="nps-popup-overlay-bg" id="nps-popup-overlay-bg"></div>';
     html += '<div class="nps-popup-content">';
 
@@ -146,14 +146,14 @@ function buildGeneralTabHtml() {
     html += '<div class="nps-setting-row"><label for="nps-popup-auto-paste">입력창에 자동 붙여넣기</label><input type="checkbox" id="nps-popup-auto-paste"></div>';
     html += '<div class="nps-setting-row"><label for="nps-popup-show-input-btn">입력창 옆 버튼 표시</label><input type="checkbox" id="nps-popup-show-input-btn"></div>';
     html += '<div class="nps-setting-row"><label for="nps-popup-use-custom-direction">전개 방향 입력 사용</label><input type="checkbox" id="nps-popup-use-custom-direction"></div>';
-    html += '<div class="nps-setting-row"><label for="nps-popup-sentence-count">추천 당 문장 수</label><input type="number" id="nps-popup-sentence-count" min="1" max="10" value="2" class="nps-number-input"></div>';
+    html += '<div class="nps-setting-row"><label for="nps-popup-sentence-count">추천 당 문장 수</label><input type="number" id="nps-popup-sentence-count" min="1" max="12" value="2" class="nps-number-input"></div>';
     html += '<div class="nps-setting-row"><label for="nps-popup-suggestion-count">추천 개수</label><input type="number" id="nps-popup-suggestion-count" min="1" max="10" value="3" class="nps-number-input"></div>';
     html += '<div class="nps-setting-row"><label for="nps-popup-output-language">추천 언어</label><select id="nps-popup-output-language"><option value="ko">한국어</option><option value="en">English</option><option value="ja">日本語</option></select></div>';
     html += '<div class="nps-setting-row"><label for="nps-popup-max-context">총 토큰 예산 (입력 + 출력 예약)</label><input type="number" id="nps-popup-max-context" min="2048" max="262144" value="8000" class="nps-number-input"></div>';
     html += '<div class="nps-setting-row"><label for="nps-popup-json-mode">JSON 엄격 파싱 (끄면 번호 목록도 허용)</label><input type="checkbox" id="nps-popup-json-mode"></div>';
     html += '<div class="nps-setting-row"><label for="nps-popup-enable-cache">추천 캐싱</label><input type="checkbox" id="nps-popup-enable-cache"></div>';
-    html += '<div class="nps-setting-row"><label for="nps-popup-enable-compression">프롬프트 압축<br><small>긴 대화에서 오래된 메시지를 자동 요약하여 토큰 절약</small></label><input type="checkbox" id="nps-popup-enable-compression"></div>';
-    html += '<div class="nps-setting-row"><label for="nps-popup-compression-threshold">압축 기준 (메시지 수)<br><small>이 수 이상일 때 오래된 메시지를 요약</small></label><input type="number" id="nps-popup-compression-threshold" min="10" max="100" value="20" class="nps-number-input"></div>';
+    html += '<div class="nps-setting-row"><label for="nps-popup-enable-compression">프롬프트 압축<br><small>긴 대화에서 오래된 메시지의 관련 원문을 발췌하여 토큰 절약</small></label><input type="checkbox" id="nps-popup-enable-compression"></div>';
+    html += '<div class="nps-setting-row"><label for="nps-popup-compression-threshold">압축 기준 (메시지 수)<br><small>이 수 이상일 때 오래된 메시지를 발췌</small></label><input type="number" id="nps-popup-compression-threshold" min="10" max="100" value="20" class="nps-number-input"></div>';
     html += '</div>';
 
     // Input 소스
@@ -213,12 +213,12 @@ function buildGeneralTabHtml() {
 
     // 추천 길이 슬라이더
     html += '<div class="nps-settings-section">';
-    html += '<div class="nps-settings-section-title"><i class="fa-solid fa-text-width"></i><span>추천 길이</span></div>';
-    html += '<p class="nps-section-desc">생성될 각 추천의 길이를 조절합니다.</p>';
+    html += '<div class="nps-settings-section-title"><i class="fa-solid fa-text-width"></i><span>추천 세부 정보량</span></div>';
+    html += '<p class="nps-section-desc">문장 수는 유지하면서 각 추천에 담을 세부 정보량을 조절합니다.</p>';
     html += '<div class="nps-setting-row">';
     html += '<label for="nps-popup-suggestion-length">길이 수준</label>';
     html += '<input type="range" id="nps-popup-suggestion-length" min="1" max="10" step="1" value="5">';
-    html += '<div class="nps-pacing-labels"><span>짧게</span><span id="nps-suggestion-length-val">5</span><span>길게</span></div>';
+    html += '<div class="nps-pacing-labels"><span>핵심만</span><span id="nps-suggestion-length-val">5</span><span>상세히</span></div>';
     html += '</div>';
     html += '</div>';
 
@@ -415,7 +415,7 @@ function buildPlotTabHtml() {
     html += '<div class="nps-settings-section">';
     html += '<div class="nps-settings-section-title"><i class="fa-solid fa-stairs"></i><span>서사 단계</span></div>';
     html += '<p class="nps-section-desc">단어 빈도로 서사 단계를 단정하지 않습니다. 필요할 때 직접 지정하세요.</p>';
-    html += '<div class="nps-setting-row"><label for="nps-arc-auto-detect">단어 기반 자동 감지 (사용 안 함)</label><input type="checkbox" id="nps-arc-auto-detect" disabled></div>';
+    html += '<div class="nps-setting-row"><label for="nps-arc-auto-detect">자동 단계 감지 (현재 지원 안 함)</label><input type="checkbox" id="nps-arc-auto-detect" disabled></div>';
     html += '<div class="nps-arc-display" id="nps-arc-display">';
     html += '<span class="nps-arc-label">판단 방식:</span>';
     html += '<span class="nps-arc-stage" id="nps-arc-detected-stage">-</span>';
@@ -580,7 +580,7 @@ function buildApiTabHtml() {
     html += '<div class="nps-setting-row nps-profile-row"><label for="nps-popup-llm-provider" class="nps-profile-label">LLM Provider</label>';
     html += '<select id="nps-popup-llm-provider"><option value="openai">OpenAI</option><option value="claude">Claude (Anthropic)</option><option value="google">Google (Gemini)</option><option value="cohere">Cohere</option></select></div>';
     html += '<div class="nps-setting-row nps-profile-row"><label for="nps-popup-llm-model" class="nps-profile-label">모델 이름</label>';
-    html += '<select id="nps-popup-llm-model"></select></div>';
+    html += '<input type="text" id="nps-popup-llm-model" list="nps-model-options" placeholder="모델 이름 직접 입력"><datalist id="nps-model-options"></datalist></div>';
     html += '<p class="nps-hint" style="margin: 5px 0; font-size: 0.85em; color: #888;">SillyTavern에 해당 Provider의 API 키가 이미 설정되어 있어야 합니다.</p>';
     html += '</div>';
 
@@ -640,7 +640,7 @@ function buildApiTabHtml() {
 }
 
 function buildDirectionPopupHtml() {
-    let html = '<div id="nps-direction-popup" class="nps-direction-popup">';
+    let html = '<div id="nps-direction-popup" role="dialog" aria-modal="true" aria-label="전개 방향 입력" class="nps-direction-popup">';
     html += '<div class="nps-popup-overlay-bg" id="nps-direction-overlay-bg"></div>';
     html += '<div class="nps-direction-popup-content">';
     html += '<div class="nps-popup-header">';
@@ -664,7 +664,7 @@ function buildDirectionPopupHtml() {
 }
 
 function buildTextareaExpandPopupHtml() {
-    let html = '<div id="nps-textarea-expand-popup" class="nps-textarea-expand-popup">';
+    let html = '<div id="nps-textarea-expand-popup" role="dialog" aria-modal="true" aria-label="프롬프트 확대 편집" class="nps-textarea-expand-popup">';
     html += '<div class="nps-popup-overlay-bg" id="nps-textarea-expand-overlay-bg"></div>';
     html += '<div class="nps-textarea-expand-content">';
     html += '<div class="nps-popup-header">';

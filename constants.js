@@ -9,6 +9,10 @@ export const extensionFolderPath = `scripts/extensions/third-party/${extensionNa
 /** 기본 설정 */
 export const defaultSettings = {
     enabled: true,
+    planningScope: "next",
+    noveltyPolicy: "organic",
+    pinnedContext: "",
+    requestTimeoutMs: 120000,
     autoSuggest: false,
     autoSuggestDelay: 1000,
     autoPasteToInput: false,
@@ -102,7 +106,7 @@ export const defaultSettings = {
     // v1.7.0: 피드백 히스토리
     negativeFeedbackKeywords: [],
     schemaVersion: 2,
-    generationMode: "fast",
+    generationMode: "quality",
     candidateCount: 6,
     outputMode: "outline",
     useStoryMemory: true,
@@ -117,55 +121,55 @@ export const defaultQualityPrompts = {
         name: "문학적 산문",
         nameEn: "Literary Prose",
         icon: "fa-feather-pointed",
-        prompt: "Write with rich literary prose and vivid imagery. Create multi-dimensional characters with complex emotions, internal conflicts, and nuanced psychological depth. Include sensory details (sight, sound, smell, touch, taste), metaphors, and show rather than tell. Use varied sentence structures — mix short punchy sentences with longer flowing ones to create rhythm."
+        prompt: "Write polished literary prose with precise, selective imagery. Reveal psychological depth through perception, behavior, choice, and subtext rather than explanatory labels. Use only sensory details that sharpen the conflict or emotional turn; do not inventory all five senses. Prefer fresh concrete language, controlled rhythm, and one telling image over purple prose or stacked metaphors. Causality and scene movement remain clear."
     },
     conciseReport: {
         id: "conciseReport",
         name: "요약/리포트",
         nameEn: "Concise Report",
         icon: "fa-file-lines",
-        prompt: "Write in a concise, report-style format. Focus on what happens, to whom, and the key outcome. Strip away flowery language — be direct, clear, and informative. Use short declarative sentences. Prioritize plot-relevant actions and decisions over description or internal monologue."
+        prompt: "Write a concise, high-information development summary. Preserve the specific trigger, motive, decisive action, immediate consequence, and changed story state. Use strong verbs and concrete nouns; remove filler, vague evaluation, and decorative description. Brevity must not collapse the causal chain into a generic one-line premise."
     },
     screenplayStyle: {
         id: "screenplayStyle",
         name: "각본/시나리오",
         nameEn: "Screenplay",
         icon: "fa-clapperboard",
-        prompt: "Write in a screenplay-like style. Emphasize sharp, natural-sounding dialogue and concise action lines. Describe character actions and reactions visually — as a camera would capture them. Minimize internal narration; let behavior, expression, and dialogue convey emotions. Include brief scene-setting descriptions."
+        prompt: "Write with screenplay-like immediacy: playable actions, observable reactions, purposeful blocking, and dialogue whose wording changes the situation. Let behavior and subtext carry emotion; avoid camera directions, screenplay headers, exposition speeches, and dialogue that only restates known facts. Keep scene-setting brief and functional."
     },
     lightNovel: {
         id: "lightNovel",
         name: "라이트노벨",
         nameEn: "Light Novel",
         icon: "fa-book-open",
-        prompt: "Write in a light novel style — conversational, energetic, and character-driven. Use first-person or close third-person perspective with casual inner monologue. Include comedic timing, exaggerated reactions, and snappy dialogue. Keep descriptions brief but vivid. The tone should feel like a fun, engaging read."
+        prompt: "Write accessible, character-driven light-novel prose with a close viewpoint, clean momentum, vivid but brief description, and dialogue shaped by each character's established voice. Use inner commentary, humor, or heightened reactions only when the current tone supports them; do not force comedy, stock anime mannerisms, or generic banter."
     },
     poeticStyle: {
         id: "poeticStyle",
         name: "시적/서정적",
         nameEn: "Poetic / Lyrical",
         icon: "fa-pen-nib",
-        prompt: "Write with a poetic, lyrical quality. Use evocative imagery, metaphor, and rhythmic language. Prioritize emotional resonance and atmosphere over plot mechanics. Let descriptions linger on beauty, pain, or wonder. Sentences should flow musically — pay attention to cadence, alliteration, and the sound of words."
+        prompt: "Write lyrical but disciplined prose. Let cadence and one or two concrete images intensify the scene's decisive emotional turn. Metaphor must arise from the viewpoint and setting, not decorate every sentence. Never obscure who acts, why, what changes, or the immediate consequence; emotional resonance should deepen the plot movement rather than replace it."
     },
     casualChat: {
         id: "casualChat",
         name: "일상 대화체",
         nameEn: "Casual / Chatty",
         icon: "fa-comments",
-        prompt: "Write in a casual, everyday conversational tone. Characters speak naturally with contractions, slang, and incomplete sentences. Keep narration light and informal, as if telling a friend what happened. Avoid formality or literary flourish — prioritize relatability and natural flow."
+        prompt: "Write in a natural, unforced conversational register. Give each character distinct diction based on the supplied material; use slang, fragments, and informality only when they fit that speaker. Keep narration light and concrete. Avoid filler banter, generic modern slang, and voices that all sound alike."
     }
 };
 
 /** 기본 분위기 프롬프트 */
 export const defaultMoods = [
-    { id: "hopeful", name: "희망적/긍정적", nameEn: "Hopeful/Positive", prompt: "Create an uplifting, optimistic atmosphere. Focus on hope, joy, warmth, and positive developments. Characters should experience moments of happiness, connection, or triumph. Include heartwarming interactions and silver linings even in difficult situations. Let the optimism feel earned rather than naive." },
-    { id: "dark", name: "어둡고 절망적", nameEn: "Dark/Desperate", prompt: "Create a dark, heavy atmosphere filled with despair or tension. Focus on struggles, losses, moral dilemmas, or overwhelming challenges. Characters may face difficult truths, betrayals, or seemingly hopeless situations. Emphasize emotional weight and dramatic tension. Use environmental and sensory details to reinforce the oppressive mood." },
-    { id: "mysterious", name: "신비롭고 미스터리", nameEn: "Mysterious", prompt: "Create an atmosphere of mystery and intrigue. Include unexplained events, hidden secrets, cryptic hints, or subtle supernatural elements. Keep readers guessing with ambiguous details and skillful foreshadowing. Plant seeds of questions that beg to be answered. Maintain an air of the unknown without resorting to cheap confusion." },
-    { id: "romantic", name: "로맨틱/감성적", nameEn: "Romantic/Emotional", prompt: "Create a romantic, emotionally charged atmosphere. Focus on deep feelings, intimate moments, meaningful glances, and heart-fluttering interactions. Emphasize emotional vulnerability, attraction, and the development of romantic bonds. Use subtext — what characters don't say can be as powerful as what they do." },
-    { id: "tense", name: "긴장감/서스펜스", nameEn: "Tense/Suspenseful", prompt: "Create a tense, suspenseful atmosphere. Build anticipation and anxiety through pacing, uncertain outcomes, and high stakes. Include moments of danger, close calls, or psychological pressure. Use dramatic irony — let the reader sense danger the characters may not. Keep the tension palpable throughout." },
-    { id: "comedic", name: "유머러스/코믹", nameEn: "Humorous/Comedic", prompt: "Create a light-hearted, humorous atmosphere. Include witty dialogue, situational irony, comedic timing, and playful interactions. Focus on fun, laughter, and entertaining moments while maintaining character authenticity. Humor should arise naturally from character personalities and situations, not forced gags." },
-    { id: "melancholic", name: "우울/감상적", nameEn: "Melancholic/Wistful", prompt: "Create a melancholic, reflective atmosphere. Focus on bittersweet moments, nostalgia, loss, or quiet sadness. Characters may contemplate the past, missed opportunities, or the passage of time. Emphasize emotional depth and poignant beauty. Mix sorrow with glimpses of tenderness to avoid monotone bleakness." },
-    { id: "epic", name: "웅장/서사적", nameEn: "Epic/Grand", prompt: "Create an epic, grand atmosphere. Focus on momentous events, heroic actions, or pivotal turning points. Include sweeping descriptions, dramatic confrontations, and a sense of historical significance. Make the stakes feel world-changing while keeping individual character stakes personal and relatable." }
+    { id: "hopeful", name: "희망적/긍정적", nameEn: "Hopeful/Positive", prompt: "Shape the consequence toward earned hope: a believable opening, repaired connection, demonstrated competence, or chosen commitment. Preserve existing difficulty and cost; do not solve problems through luck or compulsory cheerfulness." },
+    { id: "dark", name: "어둡고 절망적", nameEn: "Dark/Desperate", prompt: "Emphasize the credible cost of existing pressures: narrowed options, compromised values, isolation, or a difficult truth. Darkness must follow from character choices and established conditions; do not add arbitrary betrayal, cruelty, tragedy, or hopelessness." },
+    { id: "mysterious", name: "신비롭고 미스터리", nameEn: "Mysterious", prompt: "Create intrigue by making an established detail inconsistent, newly meaningful, or incomplete. Let a character pursue a testable question. Do not invent a hidden secret, cryptic stranger, supernatural event, or unexplained clue unless the source already supports it." },
+    { id: "romantic", name: "로맨틱/감성적", nameEn: "Romantic/Emotional", prompt: "Develop intimacy or romantic tension through a concrete choice, boundary, act of care, risk, or vulnerable exchange. Preserve each character's agency and current relationship state; do not assume mutual attraction, force a confession, or rely only on meaningful glances." },
+    { id: "tense", name: "긴장감/서스펜스", nameEn: "Tense/Suspenseful", prompt: "Build suspense from incomplete knowledge, a deadline, exposure risk, conflicting goals, or a costly choice already latent in the scene. Escalate through consequences and narrowing options, not an unsupported attack, chase, accident, or sudden threat." },
+    { id: "comedic", name: "유머러스/코믹", nameEn: "Humorous/Comedic", prompt: "Let humor emerge from established personality, mismatched goals, social friction, timing, or an action's unintended consequence. The joke should reveal character or alter the situation; avoid random gags, humiliation without purpose, and interchangeable quips." },
+    { id: "melancholic", name: "우울/감상적", nameEn: "Melancholic/Wistful", prompt: "Create bittersweet weight through a present choice shaped by loss, distance, memory, or an ending already supported by the story. Reflection must change what a character accepts, refuses, preserves, or does next; avoid static sadness and generic nostalgia." },
+    { id: "epic", name: "웅장/서사적", nameEn: "Epic/Grand", prompt: "Give the current choice a sense of scale through accumulated consequence, sacrifice, public meaning, or commitment. Scale is relative to the established story; do not inflate a personal scene into a world-ending event or invent armies, prophecies, and spectacle." }
 ];
 
 /** 전개 유형 (Feature 1) */
@@ -235,19 +239,19 @@ export const defaultGenres = [
 
 /** 조건부 규칙 프리셋 (v1.8.0) */
 export const conditionalRulePresets = [
-    { label: "위기 구출", icon: "fa-shield-halved", condition: "캐릭터가 위험에 처하면", action: "구출 장면 또는 긴박한 탈출 제안" },
-    { label: "소강 타파", icon: "fa-bolt", condition: "대화가 소강 상태일 때", action: "예상치 못한 이벤트로 긴장감 생성" },
-    { label: "로맨스 견제", icon: "fa-heart-crack", condition: "로맨스 분위기가 무르익으면", action: "역전/방해 요소로 긴장감 조성" },
-    { label: "전투 전환", icon: "fa-burst", condition: "전투/액션 중이면", action: "전세 역전 또는 새로운 위협 등장" },
-    { label: "인물 등장", icon: "fa-user-plus", condition: "새로운 캐릭터가 등장하면", action: "캐릭터 소개 및 관계 설정 전개" },
-    { label: "절정 극대화", icon: "fa-fire-flame-curved", condition: "이야기가 절정에 다다르면", action: "클라이막스에 걸맞은 극적 전개 제안" }
+    { label: "위기 대응", icon: "fa-shield-halved", condition: "캐릭터가 위험에 처하면", action: "기존 능력·관계·환경을 활용한 선택을 만들고, 구조나 탈출에는 대가와 이후의 관계 변화를 남긴다" },
+    { label: "소강 전환", icon: "fa-bolt", condition: "대화가 소강 상태일 때", action: "새 사건을 투입하기보다 회피하던 쟁점·미완의 행동·관계의 경계를 한 인물의 구체적 선택으로 움직인다" },
+    { label: "로맨스 심화", icon: "fa-heart-crack", condition: "로맨스 분위기가 무르익으면", action: "억지 방해물 대신 취약성·경계·상충하는 목표·감수할 대가를 드러내 관계 상태를 실제로 바꾼다" },
+    { label: "전투 전환", icon: "fa-burst", condition: "전투/액션 중이면", action: "새 적을 추가하지 않고 기존 공간·목표·부상·자원의 의미를 바꾸는 선택으로 전세와 비용을 함께 변화시킨다" },
+    { label: "인물 정착", icon: "fa-user-plus", condition: "새로운 캐릭터가 등장하면", action: "설명식 소개 대신 즉각적인 목표와 행동으로 기존 인물과의 역할·이해관계·긴장을 확정한다" },
+    { label: "절정 회수", icon: "fa-fire-flame-curved", condition: "이야기가 절정에 다다르면", action: "새로운 반전보다 누적된 선택과 복선을 결정적 행동으로 회수하고 되돌릴 수 없는 결과를 만든다" }
 ];
 
 /** 퀄리티 강화 옵션 (v1.8.0) — 문장 기법/글쓰기 기술 (전개 유형과 겹치지 않는 순수 필력 향상) */
 export const qualityEnhancements = [
-    { id: "subtext", name: "서브텍스트 활용", nameEn: "Subtext & Implication", icon: "fa-mask", prompt: "Layer every interaction with subtext. What characters say should carry hidden meaning beneath the surface. Use implication, loaded silences, double meanings, and body language that contradicts spoken words. The reader should sense unspoken tensions, desires, and agendas." },
-    { id: "figurative", name: "비유/수사법", nameEn: "Figurative Language", icon: "fa-feather-pointed", prompt: "Enrich the prose with vivid figurative language. Use fresh metaphors, similes, and personification. Avoid clichéd comparisons. Let abstract concepts be expressed through concrete, unexpected imagery that deepens the reader's emotional connection." },
-    { id: "deepPOV", name: "시점 몰입 강화", nameEn: "Deep POV Immersion", icon: "fa-street-view", prompt: "Write in deep point-of-view. Filter every description through the POV character's perception, biases, and emotional state. Avoid omniscient narrator intrusions. The world should feel colored by the character's psychology — a scared character notices threats, a lover notices beauty." },
+    { id: "subtext", name: "서브텍스트 활용", nameEn: "Subtext & Implication", icon: "fa-mask", prompt: "Use subtext at the scene's pressure points. Let wording, omission, timing, or body language reveal a supported want or conflict without making every line cryptic. The subtext should affect interpretation or choice, not merely add vagueness." },
+    { id: "figurative", name: "비유/수사법", nameEn: "Figurative Language", icon: "fa-feather-pointed", prompt: "Use a small number of fresh, viewpoint-specific metaphors or comparisons where they clarify emotion or sharpen the turn. Avoid clichés, mixed metaphors, decorative personification, and imagery that obscures concrete action." },
+    { id: "deepPOV", name: "시점 몰입 강화", nameEn: "Deep POV Immersion", icon: "fa-street-view", prompt: "Keep perception inside the established viewpoint and its knowledge limits. Select details according to that character's immediate goal, bias, and emotional pressure; let interpretation remain fallible. Avoid omniscient explanation, mind-reading other characters, and generic emotion filters." },
     { id: "proseRhythm", name: "문장 리듬 변화", nameEn: "Prose Rhythm Variety", icon: "fa-wave-square", prompt: "Vary sentence rhythm deliberately. Alternate short, punchy fragments with longer, flowing sentences. Use sentence length to control pacing — staccato for tension, flowing for calm. Avoid monotonous sentence patterns. Let the prose itself breathe and pulse." },
     { id: "concise", name: "간결함 우선", nameEn: "Concise Writing", icon: "fa-scissors", prompt: "Prioritize concise, tight prose. Every word must earn its place. Cut filler words, redundant descriptions, and unnecessary qualifiers. Favor strong verbs over adverb-adjective combinations. Deliver maximum impact with minimum word count." }
 ];
@@ -255,21 +259,21 @@ export const qualityEnhancements = [
 /** 장면 분위기 선택지 (v1.8.0) */
 export const sceneAtmospheres = [
     { id: "none", name: "선택 안 함", icon: "fa-circle-xmark" },
-    { id: "cozy", name: "아늑하고 포근한", icon: "fa-mug-hot", prompt: "Create a cozy, warm setting — soft lighting, comfortable surroundings, a sense of safety and intimacy." },
-    { id: "eerie", name: "서늘하고 불길한", icon: "fa-ghost", prompt: "Create an eerie, unsettling atmosphere — something feels wrong. Subtle disturbances, unexplained details, creeping unease." },
-    { id: "grandiose", name: "웅장하고 장엄한", icon: "fa-mountain-sun", prompt: "Create a grand, awe-inspiring setting — vast landscapes, towering structures, or breathtaking natural phenomena." },
-    { id: "claustrophobic", name: "폐쇄적/압박감", icon: "fa-lock", prompt: "Create a claustrophobic, pressured atmosphere — confined spaces, no escape routes, walls closing in." },
-    { id: "dreamlike", name: "몽환적/초현실", icon: "fa-cloud-moon", prompt: "Create a dreamlike, surreal atmosphere — blurred boundaries between real and imagined, symbolic imagery, fluid logic." },
-    { id: "festive", name: "화기애애/축제", icon: "fa-champagne-glasses", prompt: "Create a festive, lively setting — celebrations, crowds, music, energy, and social interaction." }
+    { id: "cozy", name: "아늑하고 포근한", icon: "fa-mug-hot", prompt: "Render the established setting as warm and sheltered through a few available details. Use comfort to enable honesty, trust, or a lowered guard; do not invent a new cozy location or erase unresolved tension." },
+    { id: "eerie", name: "서늘하고 불길한", icon: "fa-ghost", prompt: "Make an existing ordinary detail feel subtly wrong because of context, absence, repetition, or character knowledge. Keep the disturbance explainable within established reality unless supernatural rules already exist." },
+    { id: "grandiose", name: "웅장하고 장엄한", icon: "fa-mountain-sun", prompt: "Find awe in the established scale, history, ritual, collective attention, or personal significance of the setting. Do not invent vast scenery or phenomena that are not present." },
+    { id: "claustrophobic", name: "폐쇄적/압박감", icon: "fa-lock", prompt: "Use established physical or social constraints to narrow movement, privacy, time, or conversational escape. Do not conjure a literal trap when the setting does not support one." },
+    { id: "dreamlike", name: "몽환적/초현실", icon: "fa-cloud-moon", prompt: "Create a dreamlike surface through subjective perception, rhythm, association, and established sensory details while keeping events and world rules causally coherent. Do not blur reality into an unsupported dream or hallucination." },
+    { id: "festive", name: "화기애애/축제", icon: "fa-champagne-glasses", prompt: "Use an established gathering, ritual, shared activity, or social energy to create liveliness. Let public mood complicate or expose private goals; do not invent a crowd or celebration when none exists." }
 ];
 
 /** 감각 포커스 선택지 (v1.8.0) */
 export const sensoryOptions = [
-    { id: "visual", name: "시각", icon: "fa-eye", prompt: "Emphasize visual details: colors, lighting, movement, facial expressions, body language." },
-    { id: "auditory", name: "청각", icon: "fa-ear-listen", prompt: "Emphasize sounds: dialogue tone, ambient noise, music, silence, echoes." },
-    { id: "tactile", name: "촉각", icon: "fa-hand", prompt: "Emphasize touch: textures, temperature, physical contact, pain, comfort." },
-    { id: "olfactory", name: "후각/미각", icon: "fa-wind", prompt: "Emphasize smell and taste: scents, flavors, the atmosphere they create." },
-    { id: "emotional", name: "감정/내면", icon: "fa-heart-pulse", prompt: "Emphasize emotional and psychological sensations: internal feelings, gut reactions, emotional undercurrents." }
+    { id: "visual", name: "시각", icon: "fa-eye", prompt: "Use one or two established visual details—movement, expression, light, spatial relation—that reveal intention or sharpen the turn. Do not pause for a visual inventory." },
+    { id: "auditory", name: "청각", icon: "fa-ear-listen", prompt: "Use one or two meaningful sounds—tone, pause, ambient change, silence—that affect attention or interpretation. Do not add decorative soundscape." },
+    { id: "tactile", name: "촉각", icon: "fa-hand", prompt: "Use touch, texture, temperature, pain, or comfort only where physically available and emotionally consequential. Preserve boundaries and agency around contact." },
+    { id: "olfactory", name: "후각/미각", icon: "fa-wind", prompt: "Use smell or taste selectively when grounded in the setting and capable of triggering recognition, memory, appetite, disgust, or another scene-relevant response." },
+    { id: "emotional", name: "감정/내면", icon: "fa-heart-pulse", prompt: "Render emotion as a specific perception, impulse, conflict, or bodily response that shapes the next choice. Avoid naming the same feeling repeatedly or substituting introspection for action." }
 ];
 
 /** 언어별 프롬프트 설정 */

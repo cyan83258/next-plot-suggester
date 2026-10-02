@@ -12,7 +12,7 @@
 import { log } from "./utils.js";
 
 const DB_NAME = "nps-suggestion-cache";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_SUGGESTIONS = "suggestions";
 const STORE_CONTEXT_HASH = "contextHashes";
 const MAX_ENTRIES = 50;
@@ -44,6 +44,10 @@ async function initDB() {
                     const store = database.createObjectStore(STORE_SUGGESTIONS, { keyPath: "key" });
                     store.createIndex("timestamp", "timestamp", { unique: false });
                 }
+                const suggestions = event.target.transaction.objectStore(STORE_SUGGESTIONS);
+                if (!suggestions.indexNames.contains("accessedAt")) suggestions.createIndex("accessedAt", "accessedAt", { unique: false });
+                const migration=suggestions.openCursor();
+                migration.onsuccess=()=>{const cursor=migration.result;if(cursor){if(!cursor.value.accessedAt)cursor.update({...cursor.value,accessedAt:cursor.value.timestamp || Date.now()});cursor.continue();}};
                 if (!database.objectStoreNames.contains(STORE_CONTEXT_HASH)) {
                     database.createObjectStore(STORE_CONTEXT_HASH, { keyPath: "source" });
                 }
@@ -121,6 +125,7 @@ export async function cacheGet(key, ttl) {
     // 메모리 폴백
     const mem = memoryCache.get(key);
     if (mem && (Date.now() - mem.timestamp) < ttl) {
+        memoryCache.delete(key);memoryCache.set(key,mem);mem.accessedAt=Date.now();
         return mem.suggestions;
     }
     return null;
@@ -155,7 +160,7 @@ export async function cacheSet(key, suggestions) {
     }
 
     // 메모리에도 저장 (폴백 + 빠른 접근)
-    memoryCache.set(key, record);
+    memoryCache.delete(key);memoryCache.set(key, record);
     evictMemoryIfNeeded();
 }
 
@@ -196,7 +201,7 @@ function touchEntry(key) {
         const req = store.get(key);
         req.onsuccess = function () {
             if (req.result) {
-                req.result.timestamp = Date.now();
+                req.result.accessedAt = Date.now();
                 store.put(req.result);
             }
         };
@@ -216,7 +221,7 @@ async function evictIfNeeded() {
         if (count <= MAX_ENTRIES) return;
 
         // timestamp 인덱스로 가장 오래된 항목 삭제
-        const idx = store.index("timestamp");
+        const idx = store.index("accessedAt");
         const toDelete = count - MAX_ENTRIES;
         const cursor = idx.openCursor();
 

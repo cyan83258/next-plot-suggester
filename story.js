@@ -2,6 +2,7 @@
 import { extension_settings, getContext } from "../../../extensions.js";
 import { extensionName, defaultSettings } from "./constants.js";
 import { state } from "./state.js";
+import { sanitizeSettings } from "./settings.js";
 
 export const MEMORY_KEY = "npsStoryMemoryV2";
 export const categories = ["fact", "goal", "relationship", "open", "resolved", "hypothesis"];
@@ -40,11 +41,11 @@ export function settingsSnapshot() {
     const saved = extension_settings[extensionName] || {};
     const settings = clone({ ...defaultSettings, ...saved });
     for (const key of ["inputSources", "sceneLocks", "qualityEnhancements", "moodSettings", "focusTarget", "pacing", "narrativeArc"]) settings[key] = { ...defaultSettings[key], ...saved[key] };
-    return settings;
+    return sanitizeSettings(settings);
 }
 export function snapshot(direction = state.currentCustomDirection || "") {
     const ctx = getContext();
-    const context = clone({ chat: ctx.chat || [], chatId: ctx.chatId, characterId: ctx.characterId, groupId: ctx.groupId, name1: ctx.name1, name2: ctx.name2, characters: ctx.characters || [], groups: ctx.groups || [], chatMetadata: ctx.chatMetadata || {}, persona_description: ctx.powerUserSettings?.persona_description || "" });
+    const context = clone({ chat: ctx.chat || [], chatId: ctx.chatId, characterId: ctx.characterId, groupId: ctx.groupId, name1: ctx.name1, name2: ctx.name2, characters: ctx.characters || [], groups: ctx.groups || [], chatMetadata: Object.fromEntries(Object.entries(ctx.chatMetadata || {}).filter(([k])=>k!=="npsResultHistoryV1")), persona_description: ctx.powerUserSettings?.persona_description || "" });
     const settings = settingsSnapshot();
     const connection = clone({ mainApi: ctx.mainApi, chat: ctx.chatCompletionSettings || {}, text: ctx.textCompletionSettings || {} });
     return { settings, context, connection, auData: clone(extension_settings["AU-World-Builder"]?.chatData?.[ctx.chatId] || null), direction, revision: state.contextRevision || 0, scene: sceneId(ctx), story: storyId(ctx), feedback: activeFeedback(settings, context) };

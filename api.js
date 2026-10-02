@@ -40,11 +40,28 @@ export function extractResponse(data) {
     return "";
 }
 async function request(url, body, headers, signal) {
-    const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal });
+    const controller = new AbortController();
+    const relay = () => controller.abort();
+    signal?.addEventListener("abort", relay, {once:true});
+    const timer = setTimeout(()=>controller.abort("timeout"), body.__timeout || 120000);
+    const outgoing={...body};delete outgoing.__timeout;
+    let response;
+    try {
+        check(signal);
+        response = await fetch(url, { method:"POST", headers, body:JSON.stringify(outgoing), signal:controller.signal });
+    } catch(error) {
+        clearTimeout(timer);signal?.removeEventListener("abort",relay);
+        if(controller.signal.reason==="timeout"){const timeout=new Error("API 응답 제한 시간이 지났습니다. 제한 시간을 늘리거나 서버 연결을 확인해 주세요.");timeout.name="TimeoutError";throw timeout;}
+        throw error;
+    }
+    try {
     if (!response.ok) {
-        const error = new Error(`API 요청 실패 (${response.status})`);
+        let detail="";
+        try { const data=await response.json();detail=String(data.error?.message||data.message||"").replace(/(?:sk-|Bearer\s+)\S+/gi,"[비밀값 숨김]").slice(0,250); } catch {}
+        const guidance=response.status===401||response.status===403?"API 키와 접근 권한을 확인해 주세요.":response.status===429?"호출 한도 또는 사용량을 확인해 주세요.":response.status===400?"모델과 요청 형식, 토큰 설정을 확인해 주세요.":"서버 연결 상태를 확인해 주세요.";
+        const error = new Error(`API 요청 실패 (${response.status}): ${guidance}${detail?" · "+detail:""}`);
         error.status = response.status;
-        const retry = response.headers.get("Retry-After");
+        const retry = response.headers?.get("Retry-After");
         error.retryAfter = retry ? (/^\d+$/.test(retry) ? Number(retry) * 1000 : Math.max(0, Date.parse(retry) - Date.now())) : 0;
         throw error;
     }
@@ -53,6 +70,10 @@ async function request(url, body, headers, signal) {
     const text = extractResponse(data).trim();
     if (!text) throw new Error("API 응답이 비어 있습니다.");
     return text;
+    } catch (error) {
+        if(controller.signal.reason === "timeout"){const timeout=new Error("API 응답 제한 시간이 지났습니다. 제한 시간을 늘리거나 서버 연결을 확인해 주세요.");timeout.name="TimeoutError";throw timeout;}
+        throw error;
+    } finally { clearTimeout(timer);signal?.removeEventListener("abort",relay); }
 }
 export async function sendApiRequest(prompt, signal, settings = settingsSnapshot()) {
     check(signal);
@@ -80,7 +101,7 @@ export async function sendApiRequest(prompt, signal, settings = settingsSnapshot
             }
             state.effectiveApi.model = body.model;
             state.effectiveApi.temperature = body.temperature ?? "모델에서 온도 미지원";
-            return request(url, body, headers, signal);
+            return request(url, {...body,__timeout:settings.requestTimeoutMs}, headers, signal);
         }, signal);
     } finally { state.lastApiMs = performance.now() - start; }
 }

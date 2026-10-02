@@ -2,6 +2,7 @@
 import { extension_settings, getContext } from "../../../extensions.js";
 import { extensionName } from "./constants.js";
 import { state } from "./state.js";
+import { resultHistory, toggleFavorite, rateResult } from "./results.js";
 import { escapeHtml as esc, escapeAttr } from "./utils.js";
 import { MEMORY_KEY, validMemory, recordFeedback, messages, validateMemory, storyId } from "./story.js";
 
@@ -24,6 +25,11 @@ export function installStudio(actions) {
       <label>품질 모드 후보 수 <input type="number" min="3" max="10" data-nps-setting="candidateCount"></label>
       <p>문체·감각 묘사 옵션은 소설 문장과 ‘문장으로 확장’에 적용됩니다. 프리뷰에도 같은 설정·기억·장면 조건을 사용합니다.</p>
       <button type="button" id="nps-recommended">추천 기본값 적용</button>
+      <label>전개 범위 <select data-nps-setting="planningScope"><option value="scene">현재 장면 심화</option><option value="next">다음 사건 진행</option><option value="arc">장기 전개 · 연결된 2~4개 사건</option></select></label>
+      <label>새 요소 허용 <select data-nps-setting="noveltyPolicy"><option value="established">기존 요소만</option><option value="organic">자연스러운 새 요소</option><option value="open">새 사건·인물 허용</option></select></label>
+      <label>직접 API 응답 제한 시간 (ms) <input type="number" min="10000" max="600000" data-nps-setting="requestTimeoutMs"></label>
+      <label>반드시 읽을 맥락 <textarea data-nps-setting="pinnedContext" placeholder="현재 목표, 꼭 유지할 설정, 과거 복선의 원문 등을 고정하세요"></textarea></label>
+      <h3>이전 결과 · 즐겨찾기</h3><p>이 채팅에 최근 20회와 즐겨찾기 최대 20회를 보관합니다. 다른 장면의 결과도 열람·복사할 수 있습니다.</p><button type="button" id="nps-export-ratings">품질 평가 내보내기</button><div id="nps-result-history"></div>
       <h3>장면 고정 조건</h3>
       <label><input type="checkbox" data-nps-lock="noNewCharacters"> 새 인물 등장 금지</label>
       <label><input type="checkbox" data-nps-lock="keepLocation"> 장소 유지</label>
@@ -45,33 +51,59 @@ export function installStudio(actions) {
         document.querySelectorAll("#nps-settings-popup .nps-tab-btn, #nps-settings-popup .nps-tab-content").forEach(el => el.classList.remove("active"));
         button.classList.add("active"); panel.classList.add("active"); refreshStudio();
     });
+    panel.addEventListener("input", e => {const record=e.target.closest(".nps-managed-record");if(record)record.dataset.dirty="1";if(e.target.matches("[data-nps-setting],[data-nps-lock]"))e.target.dataset.dirty="1";});
     panel.addEventListener("change", e => {
         const settings = extension_settings[extensionName];
         const key = e.target.dataset.npsSetting, lock = e.target.dataset.npsLock;
         if (!key && !lock) return;
-        const value = e.target.type === "checkbox" ? e.target.checked : e.target.type === "number" ? Math.max(3, Math.min(10, Number(e.target.value) || 6)) : e.target.value;
+        const value = e.target.type === "checkbox" ? e.target.checked : e.target.type === "number" ? Math.max(Number(e.target.min), Math.min(Number(e.target.max), Number(e.target.value) || Number(e.target.min))) : e.target.value;
         if (key) settings[key] = value;
         if (lock) settings.sceneLocks[lock] = value;
+        delete e.target.dataset.dirty;
         persist();
     });
     panel.querySelector("#nps-recommended").addEventListener("click", () => {
         const s = extension_settings[extensionName];
-        Object.assign(s, { maxContextTokens: 8000, maxTokens: 2400, outputMode: "outline", selectedWritingStyle: "conciseReport", creativityLevel: 7, suggestionSpectrum: false });
+        Object.assign(s, { maxContextTokens: 8000, maxTokens: 2400, generationMode: "quality", candidateCount: 6, outputMode: "outline", selectedWritingStyle: "conciseReport", creativityLevel: 7, suggestionSpectrum: false });
         s.narrativeArc = { autoDetect: false, manualStage: "" };
         s.inputSources.charDescription = true;
         persist(); refreshStudio(); toastr.success("개요 중심 기본값을 적용했습니다. 일반·퀄리티 탭은 다시 열면 갱신됩니다.");
     });
+    panel.querySelector("#nps-export-ratings").addEventListener("click",()=>{
+        const cases=resultHistory().filter(r=>r.ratings).map(r=>({caseId:r.scene,ratings:r.ratings,note:r.ratingNote,candidates:r.candidates,configuration:r.configuration,at:r.at}));
+        if(!cases.length){toastr.info("먼저 이전 결과에 품질 점수를 저장해 주세요.");return;}
+        const url=URL.createObjectURL(new Blob([JSON.stringify({version:"2.2.0",cases},null,2)],{type:"application/json"}));
+        const link=document.createElement("a");link.href=url;link.download="nps-quality-evaluation.json";link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    });
     panel.querySelector("#nps-memory-update").addEventListener("click", () => callbacks.updateMemory());
     panel.querySelector("#nps-memory-cancel").addEventListener("click", () => callbacks.cancelGeneration());
+    panel.addEventListener("click", e=>{const id=e.target.dataset.restore, fav=e.target.dataset.favorite;if(id)callbacks.restore(id);if(fav){if(toggleFavorite(fav)===false)toastr.info("즐겨찾기는 최대 20개입니다. 먼저 하나를 해제해 주세요.");refreshStudio();}});
     panel.addEventListener("click", handleManager);
     refreshStudio();
 }
 export function refreshStudio() {
     const panel = document.getElementById("nps-tab-studio"); if (!panel) return;
     const s = extension_settings[extensionName];
+    const sameStory=panel.dataset.story===storyId();
+    const drafts = new Map();
+    if(sameStory)panel.querySelectorAll(".nps-managed-record").forEach(el=>{
+        const key=el.dataset.result||el.dataset.feedback||"memory:"+el.dataset.memory;
+        drafts.set(key,{open:el.open,dirty:el.dataset.dirty,values:[...el.querySelectorAll("input,textarea,select")].map(input=>input.value)});
+    });
+    panel.dataset.story=storyId();
     panel.querySelectorAll("[data-nps-setting], [data-nps-lock]").forEach(el => {
+        if(sameStory && el.dataset.dirty)return;
+        delete el.dataset.dirty;
         const value = el.dataset.npsSetting ? s[el.dataset.npsSetting] : s.sceneLocks[el.dataset.npsLock];
         if (el.type === "checkbox") el.checked = !!value; else el.value = value ?? "";
+    });
+    panel.querySelector("#nps-result-history").innerHTML=resultHistory().slice().reverse().map(r=>`<details data-result="${escapeAttr(r.id)}"><summary>${esc(new Date(r.at).toLocaleString())} · ${r.favorite?"★ ":""}${esc(r.candidates[0]?.text.slice(0,70)||"결과")}</summary><p>${r.candidates.map(c=>esc(c.text)).join("<br><br>")}</p><button type="button" data-restore="${escapeAttr(r.id)}">이 결과 복원</button><button type="button" data-favorite="${escapeAttr(r.id)}">${r.favorite?"즐겨찾기 해제":"즐겨찾기"}</button></details>`).join("")||"<p>아직 저장된 결과가 없습니다.</p>";
+    panel.querySelectorAll("#nps-result-history details").forEach((el,i)=>{
+        el.classList.add("nps-managed-record");
+        const r=resultHistory().slice().reverse()[i],form=document.createElement("div");
+        form.innerHTML='<p>복사 '+(r.interactions?.copy||0)+' · 전송 '+(r.interactions?.send||0)+' · 다시 생성 '+(r.interactions?.regenerate||0)+' · 수정 '+(r.interactions?.revise||0)+'</p><p>품질 평가 (1~5점)</p>'+Object.entries({continuity:"개연성",motivation:"인물 동기",interest:"재미",freshness:"신선함",usability:"사용성"}).map(([k,label])=>'<label>'+label+'<input type="number" min="1" max="5" data-score="'+k+'" value="'+(r.ratings?.[k]||3)+'"></label>').join("")+'<textarea placeholder="평가 메모">'+esc(r.ratingNote||"")+'</textarea><button type="button">평가 저장</button>';
+        form.querySelector("button").addEventListener("click",()=>{rateResult(r.id,Object.fromEntries([...form.querySelectorAll("[data-score]")].map(input=>[input.dataset.score,input.value])),form.querySelector("textarea").value);delete el.dataset.dirty;toastr.success("평가를 저장했습니다.");});
+        el.appendChild(form);
     });
     const ctx = getContext(), memory = validMemory(ctx), all = messages(ctx);
     panel.querySelector("#nps-memory-status").textContent = `${memory.covered}/${all.length}개 메시지까지 처리 · 사용 가능한 기억 ${memory.items.length}개`;
@@ -86,10 +118,16 @@ export function refreshStudio() {
         controls.innerHTML = `<label>이유 <select class="nps-preference-reason">${opt(reasons, f.reason)}</select></label><label>적용 범위 <select class="nps-preference-scope">${opt({ scene: "이번 장면", story: "이 작품", global: "전체 취향" }, f.scope)}</select></label>`;
         el.insertBefore(controls, el.querySelector("textarea"));
     });
+    panel.querySelectorAll(".nps-managed-record").forEach(el=>{
+        const saved=drafts.get(el.dataset.result||el.dataset.feedback||"memory:"+el.dataset.memory);
+        if(!saved)return;el.open=saved.open;
+        if(saved.dirty){el.dataset.dirty="1";[...el.querySelectorAll("input,textarea,select")].forEach((input,i)=>{if(saved.values[i]!==undefined)input.value=saved.values[i];});}
+    });
 }
 function handleManager(e) {
     const action = e.target.dataset.manager; if (!action) return;
     const s = extension_settings[extensionName], ctx = getContext();
+    const record=e.target.closest(".nps-managed-record");if(record)delete record.dataset.dirty;
     if (action.startsWith("feedback-")) {
         const el = e.target.closest("[data-feedback]"), f = s.feedbackRecords.find(f => f.id === el.dataset.feedback);
         if (action === "feedback-save") { f.note = el.querySelector("textarea").value.slice(0, 1000); f.reason = el.querySelector(".nps-preference-reason").value; f.scope = el.querySelector(".nps-preference-scope").value; }
@@ -139,6 +177,7 @@ export function decorateCandidates(container, candidates = state.candidates || [
     items.forEach((item, i) => {
         if (item.querySelector(".nps-candidate-tools")) return;
         const c = candidates[i]; if (!c) return;
+        item.dataset.candidateId=c.id||"";
         const tools = document.createElement("div"); tools.className = "nps-candidate-tools";
         tools.innerHTML = `<details><summary>이 추천의 근거와 변화</summary><p>${esc(c.mechanism || "구조 설명 없음")}</p><p>${esc(c.change || "")}</p>${c.evidence.length ? c.evidence.map(e => `<p><button type="button" data-source="${e.id}">M${e.id} 보기</button> ${esc(e.quote)}</p>`).join("") : "<p>검증된 원문 인용 없음 · 설정과의 일치 여부를 확인해 주세요.</p>"}<p>${esc(c.caveat || "")}</p></details><button type="button" class="nps-expand-one">문장으로 확장</button><details><summary>이 후보만 수정</summary><textarea placeholder="예: 핵심 아이디어는 유지하고 외부인 등장만 빼줘"></textarea><button type="button" class="nps-revise-one">수정 생성</button></details>`;
         tools.addEventListener("click", e => {

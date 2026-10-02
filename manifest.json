@@ -6,6 +6,6 @@
   "js": "index.js",
   "css": "style.css",
   "author": "User",
-  "version": "2.0.0",
-  "description": "근거 기반 플롯 설계, 품질 검토, 이야기 기억, 범위별 취향 피드백, 장면 조건 및 실제 입력 확인."
+  "version": "2.2.0",
+  "description": "인과관계·인물 선택·장면 진전을 중심으로 한 근거 기반 플롯 설계와 품질 검토."
 }

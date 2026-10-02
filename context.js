@@ -6,6 +6,10 @@ import { estimateTokens } from "./utils.js";
 import { messages, storyId, sceneId, validMemory, digest } from "./story.js";
 
 const sourceCache = new Map();
+export function searchTerms(text) {
+    const words = String(text).normalize("NFKC").toLowerCase().slice(-12000).match(/[\p{L}\p{N}]{2,}/gu) || [];
+    return [...new Set(words.flatMap(word => /[가-힣\u3040-\u30ff\u4e00-\u9fff]/u.test(word) ? [word, ...Array.from({length:Math.max(0,word.length-1)},(_,i)=>word.slice(i,i+2))] : [word]))].slice(-160);
+}
 export function clearContextCache() { sourceCache.clear(); }
 export async function loadContextSource(name, loader, revision = state.contextRevision || 0) {
     const key = `${storyId()}:${name}`; // Explicit lore/settings events clear this cache; new messages reuse loaded books.
@@ -40,7 +44,7 @@ export function trimBudget(text, budget, tail = false) {
     return low ? (tail ? "[앞부분 생략]… " + text.slice(-low) : text.slice(0, low) + " …[일부 생략]") : "";
 }
 export function relevantScore(text, query) {
-    const terms = new Set((query.slice(-12000).toLowerCase().match(/[가-힣a-z0-9]{2,}/g) || []).slice(-80));
+    const terms = new Set(searchTerms(query));
     const lower = text.toLowerCase();
     let score = 0;
     for (const term of terms) if (lower.includes(term)) score++;
@@ -67,7 +71,7 @@ export function packChat(sourceMessages, budget, compression = true, threshold =
     const older = sourceMessages.filter(m => !recentIds.has(m.id) || partial.includes(m.id));
     const query = sourceMessages.slice(-3).map(m => m.text).join(" ");
     const pool = older.flatMap(m => m.text.split(/(?<=[.!?。！？])\s+|\n+/).filter(s => s.trim().length >= 5).map((text, order) => ({ id: m.id, role: m.role, text: text.trim(), order, score: relevantScore(text, query) + m.id / (sourceMessages.at(-1).id + 1) })));
-    const terms = [...new Set((query.slice(-12000).toLowerCase().match(/[가-힣a-z0-9]{2,}/g) || []).slice(-80))];
+    const terms = searchTerms(query);
     const frequency = new Map(terms.map(term => [term, pool.filter(p => p.text.toLowerCase().includes(term)).length]));
     for (const p of pool) p.score = terms.reduce((score, term) => score + (p.text.toLowerCase().includes(term) ? Math.log(1 + pool.length / (1 + frequency.get(term))) : 0), 0) + p.id / (sourceMessages.at(-1).id + 1);
     pool.sort((a, b) => b.score - a.score);
@@ -145,6 +149,7 @@ export async function getWorldInfoBefore(snap) {
 export async function collectSources(snap) {
     const sources = snap.settings.inputSources;
     const list = [], warnings = [];
+    if (snap.settings.pinnedContext?.trim()) list.push({ name: "사용자 고정 맥락", text: snap.settings.pinnedContext, priority: 100 });
     const tasks = [
         ["캐릭터", sources.charDescription, () => getCharacterDescription(snap.context)],
         ["페르소나", sources.personaDescription, () => getPersonaDescription(snap.context)],
@@ -163,6 +168,9 @@ export async function collectSources(snap) {
     }
     const memory = validMemory(snap.context);
     if (snap.settings.useStoryMemory) memory.items.forEach(item => list.push({ name: `기억:${item.category}`, text: `${item.text}\n${item.evidence.map(e => `[M${e.id}] ${e.quote}`).join("\n")}` }));
+    const query = messages(snap.context).slice(-4).map(m=>m.text).join("\n");
+    for (const source of list) source.priority ??= source.name.startsWith("기억:") ? 80 + relevantScore(source.text, query) : source.name === "캐릭터" ? 65 : 35 + relevantScore(source.text, query);
+    list.sort((a,b)=>b.priority-a.priority);
     return { list, warnings, memoryCovered: memory.covered };
 }
 export async function fitContext(instructions, snap, collected) {
@@ -171,7 +179,7 @@ export async function fitContext(instructions, snap, collected) {
     const base = await tokenCount(instructions);
     if (budget - base.count < 200) throw new Error("지시문과 출력 예약량이 맥락 예산을 채웠습니다. 최대 컨텍스트를 늘리거나 지시문/출력 길이를 줄여주세요.");
     const sourceMessages = snap.settings.inputSources.chatHistory !== false ? messages(snap.context) : [];
-    let allowance = budget - base.count;
+    let allowance = budget - base.count - (snap.settings.generationMode === "quality" ? Math.min(1800, Math.floor((budget-base.count)*0.45)) : 0);
     let prompt, report;
     for (let attempt = 0; attempt < 9; attempt++) {
         const chatBudget = Math.floor(allowance * (collected.list.length ? 0.62 : 0.96));
@@ -180,16 +188,17 @@ export async function fitContext(instructions, snap, collected) {
         let left = allowance - estimateTokens(packed.text) - 35;
         const perSource = Math.max(50, Math.floor(left / Math.max(1, Math.min(collected.list.length, 5))));
         for (const source of collected.list) {
-            const text = trimBudget(source.text, Math.min(perSource, left - 15));
+            const text = trimBudget(source.text, Math.min(source.priority >= 100 ? Math.max(perSource, left * 0.65) : perSource, left - 15));
             if (text) { const block = `[${source.name}]\n${text}`; sections.push(block); included.push({ name: source.name, tokens: estimateTokens(block), truncated: text !== source.text }); left -= estimateTokens(block) + 5; }
             else excluded.push(source.name);
         }
-        prompt = instructions + "\n<story_material>\n" + sections.join("\n\n") + "\n" + packed.text + "\n</story_material>";
+        const material = "<story_material>\n" + sections.join("\n\n") + "\n" + packed.text + "\n</story_material>";
+        prompt = instructions + "\n" + material;
         const measured = await tokenCount(prompt);
         report = { ...packed, text: undefined, sources: included, excluded, warnings: collected.warnings, memoryCovered: collected.memoryCovered, total: measured.count, budget: snap.settings.maxContextTokens, outputReserve, method: measured.method, reserved: base.count, prompt, at: Date.now() };
         if (measured.count <= budget) {
             report.key = await digest({ v: 2, story: snap.story, scene: snap.scene, settings: snap.settings, connection: snap.connection, prompt });
-            return { prompt, report };
+            return { prompt, report, material };
         }
         allowance = Math.floor(allowance * Math.min(0.85, (budget - base.count) / Math.max(1, measured.count - base.count) * 0.93));
     }

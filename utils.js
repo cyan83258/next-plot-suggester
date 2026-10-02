@@ -69,20 +69,28 @@ export function pasteToInputField(text) {
 }
 
 /** 입력창에 텍스트를 넣고 즉시 전송 (Feature 2) */
-export function sendMessageToChat(text) {
+let sendingCandidate = false;
+export async function sendMessageToChat(text) {
+    if(sendingCandidate)return false;
     try {
         const textarea = document.getElementById("send_textarea");
         if (!textarea) return false;
-        textarea.value = text;
-        textarea.dispatchEvent(new Event("input", { bubbles: true }));
-        const sendBtn = document.getElementById("send_but");
-        if (sendBtn) {
-            sendBtn.click();
-            return true;
-        }
+        const previous=textarea.value;
+        if(previous.trim())return false;
+        const sendBtn=document.getElementById("send_but");
+        if(!sendBtn || sendBtn.disabled || sendBtn.classList.contains("disabled") || document.querySelector("#stop_but")?.offsetParent)return false;
+        textarea.value=text;
+        textarea.dispatchEvent(new Event("input",{bubbles:true}));
+        sendingCandidate = true;
+        sendBtn.click();
+        // SillyTavern awaits pre-generation hooks and the server ping before consuming input.
+        // Never clear a pending request: a late native handler may still read this text.
+        const until = Date.now() + 10000;
+        while (textarea.value === text && Date.now() < until) await new Promise(resolve => setTimeout(resolve, 100));
+        return textarea.value === "";
     } catch (e) {
         log("Failed to send message:", e);
-    }
+    } finally { sendingCandidate = false; }
     return false;
 }
 

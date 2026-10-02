@@ -23,6 +23,9 @@ import {
     scrollToBottom, pasteToInputField, sendMessageToChat, getAllGenres
 } from "./utils.js";
 import { testApiConnection } from "./api.js";
+import { mergeSettings } from "./settings.js";
+import { updateCandidate, reorderCandidates, saveResult, recordInteraction } from "./results.js";
+import { sceneId } from "./story.js";
 import { refreshStudio, decorateCandidates, openFeedback } from "./studio.js";
 import { detectNarrativeStage, getTokenBreakdown } from "./prompt.js";
 import { analyzeConversationRhythm } from "./utils.js";
@@ -31,6 +34,7 @@ import { createSettingsPopupHtml, createSuggestionMessageHtml, createPreviewMess
 // UI 콜백 (index.js에서 설정)
 const _callbacks = {
     showSuggestions: null,
+    regenerateSuggestions: null,
     generateWithDirection: null,
     cancelGeneration: null,
     generateFromPreview: null,
@@ -40,6 +44,7 @@ const _callbacks = {
 
 export function setupUICallbacks(callbacks) {
     if (callbacks.showSuggestions) _callbacks.showSuggestions = callbacks.showSuggestions;
+    if (callbacks.regenerateSuggestions) _callbacks.regenerateSuggestions = callbacks.regenerateSuggestions;
     if (callbacks.generateWithDirection) _callbacks.generateWithDirection = callbacks.generateWithDirection;
     if (callbacks.cancelGeneration) _callbacks.cancelGeneration = callbacks.cancelGeneration;
     if (callbacks.generateFromPreview) _callbacks.generateFromPreview = callbacks.generateFromPreview;
@@ -55,22 +60,40 @@ function saveSettings() {
     saveSettingsDebounced();
 }
 
+export function parseLiveInteger(value, min, max) {
+    if (value === "") return null;
+    const number = Number(value);
+    return Number.isInteger(number) && number >= min && number <= max ? number : null;
+}
+
+export function normalizeInteger(value, fallback, min, max) {
+    let number = value === "" ? Number(fallback) : Number(value);
+    if (!Number.isFinite(number)) number = Number(fallback);
+    if (!Number.isFinite(number)) number = min;
+    return Math.round(Math.max(min, Math.min(max, number)));
+}
+
 // ═══════════════════════════════════════════
 // 설정 팝업
 // ═══════════════════════════════════════════
+let popupReturnFocus = null;
+let directionReturnFocus = null;
 export function openSettingsPopup() {
+    popupReturnFocus = document.activeElement;
     const popup = document.getElementById("nps-settings-popup");
     if (popup) {
-        $(popup).addClass("open");
+        popup.classList.add("open");
         updatePopupUIFromSettings();
         refreshAnalyticsPanel();
         refreshStudio();
+        popup.querySelector("button, input, select, textarea")?.focus();
     }
 }
 
 export function closeSettingsPopup() {
     const popup = document.getElementById("nps-settings-popup");
-    if (popup) $(popup).removeClass("open");
+    if (popup) popup.classList.remove("open");
+    if(popupReturnFocus?.isConnected)popupReturnFocus.focus();
 }
 
 // 헬퍼
@@ -219,15 +242,16 @@ function updateLlmModelList(provider, setDefault) {
     };
 
     const modelSelect = document.getElementById("nps-popup-llm-model");
+    const modelList = document.getElementById("nps-model-options");
     if (!modelSelect) return;
 
-    modelSelect.innerHTML = "";
+    if(modelList)modelList.innerHTML = "";
     const models = modelLists[provider] || [];
     models.forEach(function (model) {
         const option = document.createElement("option");
         option.value = model;
         option.textContent = model;
-        modelSelect.appendChild(option);
+        modelList?.appendChild(option);
     });
 
     if (setDefault) {
@@ -235,12 +259,8 @@ function updateLlmModelList(provider, setDefault) {
         extension_settings[extensionName].llmModel = modelSelect.value;
     } else {
         const saved = extension_settings[extensionName].llmModel;
-        if (saved && models.indexOf(saved) >= 0) {
-            modelSelect.value = saved;
-        } else if (models.length > 0) {
-            modelSelect.value = models[0];
-            extension_settings[extensionName].llmModel = models[0];
-        }
+        modelSelect.value = saved || defaultModels[provider] || "";
+
     }
 }
 
@@ -811,12 +831,7 @@ function loadProfile(index) {
         apiKey: settings.apiKey || ""
     };
 
-    for (let key in profile.data) {
-        if (Object.prototype.hasOwnProperty.call(profile.data, key) && Object.prototype.hasOwnProperty.call(defaultSettings, key) && !["apiKey", "feedbackRecords", "settingsProfiles"].includes(key)) {
-            settings[key] = typeof profile.data[key] === "object" && profile.data[key] !== null
-                ? (Array.isArray(profile.data[key]) ? JSON.parse(JSON.stringify(profile.data[key])) : { ...defaultSettings[key], ...settings[key], ...JSON.parse(JSON.stringify(profile.data[key])) }) : profile.data[key];
-        }
-    }
+    Object.assign(settings, mergeSettings(settings, profile.data));
 
     // 보존값 복원
     settings.settingsProfiles = preserved.settingsProfiles;
@@ -898,11 +913,11 @@ function renderQuickTemplates() {
 
     // 기본 템플릿
     const defaults = [
-        { text: "갑작스러운 사건 발생", icon: "fa-bolt" },
-        { text: "감정적 대화", icon: "fa-heart" },
-        { text: "새로운 인물 등장", icon: "fa-user-plus" },
-        { text: "장면 전환", icon: "fa-right-left" },
-        { text: "비밀이 밝혀짐", icon: "fa-eye" }
+        { text: "기존 복선의 대가 드러내기", icon: "fa-bolt" },
+        { text: "인물의 선택으로 관계 변화", icon: "fa-heart" },
+        { text: "상충하는 목표 협상", icon: "fa-comments" },
+        { text: "갈등 후 약속을 행동으로 옮기기", icon: "fa-right-left" },
+        { text: "기존 단서의 의미 재해석", icon: "fa-eye" }
     ];
 
     defaults.forEach(function (tmpl) {
@@ -990,6 +1005,14 @@ export function displaySuggestionMessage(suggestions) {
 
     // 이벤트 위임 - 단일 리스너로 모든 액션 처리
     messageDiv.addEventListener("click", handleSuggestionAction);
+    messageDiv.addEventListener("keydown", e=>{
+        const content=e.target.closest(".nps-suggestion-content");if(!content)return;
+        if(e.ctrlKey && ["ArrowUp","ArrowDown"].includes(e.key)){
+            e.preventDefault();const item=content.closest(".nps-suggestion-item"), list=item.parentElement;
+            const neighbor=e.key==="ArrowUp"?item.previousElementSibling:item.nextElementSibling;
+            if(neighbor){if(e.key==="ArrowUp")list.insertBefore(item,neighbor);else list.insertBefore(neighbor,item);renumberSuggestionItems(list);content.focus();}
+        }else if(["Enter"," "].includes(e.key)){e.preventDefault();handleSuggestionAction(e);}
+    });
 
     // v1.5.2: 드래그 앤 드롭 순서 변경
     initDragAndDrop(messageDiv);
@@ -1023,6 +1046,7 @@ export function displayPreviewMessage(previews) {
     messageDiv.id = state.currentSuggestionMessageId;
     messageDiv.className = "mes nps-suggestion-mes nps-preview-mes";
     messageDiv.innerHTML = createPreviewMessageHtml(previews);
+    messageDiv.querySelectorAll(".nps-preview-item").forEach((item,i)=>{item.dataset.candidateId=state.candidates?.[i]?.id||"";});
     fragment.appendChild(messageDiv);
 
     // 이벤트 위임
@@ -1046,6 +1070,7 @@ function handlePreviewAction(e) {
         case "select-preview": {
             const item = actionEl.closest(".nps-preview-item");
             const preview = item ? item.dataset.preview : "";
+            if(state.resultScene !== sceneId()){toastr.warning("현재 장면에서 새 프리뷰를 생성해 주세요.");break;}
             if (preview && _callbacks.generateFromPreview) {
                 _callbacks.generateFromPreview(preview);
             }
@@ -1156,6 +1181,7 @@ function initDragAndDrop(container) {
 
 /** 드롭 후 번호·인덱스 재갱신 */
 function renumberSuggestionItems(buttonsList) {
+    reorderCandidates([...buttonsList.querySelectorAll(".nps-suggestion-item")].map(item=>item.dataset.candidateId));
     const items = buttonsList.querySelectorAll(".nps-suggestion-item");
     items.forEach(function (item, idx) {
         item.dataset.index = idx;
@@ -1182,6 +1208,7 @@ async function handleSuggestionAction(e) {
 
     switch (action) {
         case "copy": {
+            recordInteraction("copy");
             await copyToClipboard(suggestion);
             if (settings.autoPasteToInput) {
                 pasteToInputField("<ooc: " + suggestion + ">");
@@ -1193,11 +1220,12 @@ async function handleSuggestionAction(e) {
             break;
         }
         case "send": {
-            // Feature 2: 바로 보내기
+            if(state.resultScene !== sceneId()){toastr.warning("다른 장면의 결과입니다. 복사해서 내용을 확인한 뒤 사용해 주세요.");break;}
             const oocText = "<ooc: " + suggestion + ">";
-            sendMessageToChat(oocText);
+            if(!await sendMessageToChat(oocText)){toastr.warning("전송하지 못했습니다. 작성 중인 입력이나 생성 상태를 확인해 주세요.");break;}
+            if(item?.isConnected)recordInteraction("send");
             toastr.success("메시지를 전송했습니다!");
-            removeSuggestionMessage();
+            if(item?.isConnected)removeSuggestionMessage();
             break;
         }
         case "edit": {
@@ -1215,6 +1243,8 @@ async function handleSuggestionAction(e) {
         case "edit-copy": {
             const editTextarea = item ? item.querySelector(".nps-edit-textarea") : null;
             const editText = editTextarea ? editTextarea.value.trim() : suggestion;
+            updateCandidate(item.dataset.candidateId, editText);
+            item.dataset.suggestion=editText;
             await copyToClipboard(editText);
             toastr.success("편집된 내용이 복사되었습니다.");
             removeSuggestionMessage();
@@ -1223,9 +1253,11 @@ async function handleSuggestionAction(e) {
         case "edit-send": {
             const sendTextarea = item ? item.querySelector(".nps-edit-textarea") : null;
             const sendText = sendTextarea ? sendTextarea.value.trim() : suggestion;
-            sendMessageToChat("<ooc: " + sendText + ">");
+            if(state.resultScene !== sceneId()){toastr.warning("다른 장면의 결과입니다. 복사해서 사용해 주세요.");break;}
+            if(!sendMessageToChat("<ooc: " + sendText + ">")){toastr.warning("전송하지 못했습니다. 작성 중인 입력이나 생성 상태를 확인해 주세요.");break;}
+            if(item?.isConnected){updateCandidate(item.dataset.candidateId, sendText);recordInteraction("send");}
             toastr.success("편집된 내용을 전송했습니다!");
-            removeSuggestionMessage();
+            if(item?.isConnected)removeSuggestionMessage();
             break;
         }
         case "edit-cancel": {
@@ -1237,7 +1269,7 @@ async function handleSuggestionAction(e) {
             break;
         }
         case "regenerate": {
-            if (_callbacks.showSuggestions) _callbacks.showSuggestions(false, true);
+            if (_callbacks.regenerateSuggestions) _callbacks.regenerateSuggestions();
             break;
         }
         case "feedback-positive": {
@@ -1271,6 +1303,7 @@ async function handleSuggestionAction(e) {
 
 /** 추천 메시지 제거 */
 export function removeSuggestionMessage() {
+    saveResult();
     if (state.currentSuggestionMessageId) {
         const el = document.getElementById(state.currentSuggestionMessageId);
         if (el) el.remove();
@@ -1283,6 +1316,7 @@ export function removeSuggestionMessage() {
 // 전개 방향 팝업
 // ═══════════════════════════════════════════
 export function openDirectionPopup() {
+    directionReturnFocus = document.activeElement;
     const popup = document.getElementById("nps-direction-popup");
     if (popup) {
         popup.classList.add("active");
@@ -1296,6 +1330,7 @@ export function openDirectionPopup() {
 export function closeDirectionPopup() {
     const popup = document.getElementById("nps-direction-popup");
     if (popup) popup.classList.remove("active");
+    if(directionReturnFocus?.isConnected)directionReturnFocus.focus();
 }
 
 // ═══════════════════════════════════════════
@@ -1357,6 +1392,10 @@ export function addChatButton() {
 
     const button = document.createElement("div");
     button.id = "nps-generate-btn";
+    button.setAttribute("role", "button");
+    button.tabIndex = 0;
+    button.setAttribute("aria-label", "다음 전개 추천");
+    button.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); button.click(); } });
     button.className = "interactable" + (settings.autoSuggest ? " nps-auto-active" : "");
     button.title = "다음 전개 추천" + (settings.autoSuggest ? " (자동 모드 ON)" : "");
     button.innerHTML = '<span class="fa-solid fa-lightbulb"></span>' + (settings.autoSuggest ? '<span class="nps-auto-badge">A</span>' : '');
@@ -1389,6 +1428,18 @@ function updateChatButtonAutoState() {
 // 팝업 이벤트 바인딩
 // ═══════════════════════════════════════════
 export function bindPopupEvents() {
+    document.addEventListener("keydown", e=>{
+        const modal=document.querySelector("#nps-textarea-expand-popup.active") || document.querySelector("#nps-direction-popup.active") || document.querySelector("#nps-settings-popup.open");
+        if(!modal)return;
+        if(e.key==="Escape"){e.preventDefault();if(modal.id==="nps-settings-popup")closeSettingsPopup();else if(modal.id==="nps-textarea-expand-popup")closeTextareaExpandPopup(false);else closeDirectionPopup();return;}
+        if(e.key==="Tab"){
+            const items=[...modal.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, a[href], [tabindex="0"]')].filter(el=>el.offsetParent!==null);
+            if(!items.length)return;
+            const first=items[0],last=items.at(-1);
+            if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+            else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+        }
+    });
     // 닫기
     const closeBtn = document.getElementById("nps-popup-close-btn");
     if (closeBtn) closeBtn.addEventListener("click", closeSettingsPopup);
@@ -1473,7 +1524,7 @@ export function bindPopupEvents() {
 
     // ─── 숫자 설정 (일괄 바인딩) ───
     const numberSettings = [
-        { id: "nps-popup-sentence-count", key: "sentenceCount", min: 1, max: 10 },
+        { id: "nps-popup-sentence-count", key: "sentenceCount", min: 1, max: 12 },
         { id: "nps-popup-suggestion-count", key: "suggestionCount", min: 1, max: 10 },
         { id: "nps-popup-max-tokens", key: "maxTokens", min: 128, max: 32768 },
         { id: "nps-popup-max-context", key: "maxContextTokens", min: 2048, max: 262144 },
@@ -1484,16 +1535,22 @@ export function bindPopupEvents() {
     numberSettings.forEach(function (cfg) {
         const el = document.getElementById(cfg.id);
         if (el) {
-            const handler = function () {
-                let value = parseInt(this.value);
-                if (isNaN(value) || value < cfg.min) value = cfg.min;
-                if (value > cfg.max) value = cfg.max;
-                this.value = value;
+            const inputHandler = function () {
+                const value = parseLiveInteger(this.value, cfg.min, cfg.max);
+                if (value === null) return;
                 extension_settings[extensionName][cfg.key] = value;
                 saveSettings();
             };
-            el.addEventListener("input", handler);
-            el.addEventListener("change", handler);
+            const commitHandler = function () {
+                const value = normalizeInteger(this.value, extension_settings[extensionName][cfg.key], cfg.min, cfg.max);
+                this.value = String(value);
+                if (extension_settings[extensionName][cfg.key] !== value) {
+                    extension_settings[extensionName][cfg.key] = value;
+                    saveSettings();
+                }
+            };
+            el.addEventListener("input", inputHandler);
+            el.addEventListener("change", commitHandler);
         }
     });
 
@@ -1546,16 +1603,22 @@ export function bindPopupEvents() {
     }
     const previewCountEl = document.getElementById("nps-popup-preview-count");
     if (previewCountEl) {
-        const previewCountHandler = function () {
-            let value = parseInt(this.value);
-            if (isNaN(value) || value < 3) value = 3;
-            if (value > 10) value = 10;
-            this.value = value;
+        const previewCountInputHandler = function () {
+            const value = parseLiveInteger(this.value, 3, 10);
+            if (value === null) return;
             extension_settings[extensionName].previewCount = value;
             saveSettings();
         };
-        previewCountEl.addEventListener("input", previewCountHandler);
-        previewCountEl.addEventListener("change", previewCountHandler);
+        const previewCountCommitHandler = function () {
+            const value = normalizeInteger(this.value, extension_settings[extensionName].previewCount, 3, 10);
+            this.value = String(value);
+            if (extension_settings[extensionName].previewCount !== value) {
+                extension_settings[extensionName].previewCount = value;
+                saveSettings();
+            }
+        };
+        previewCountEl.addEventListener("input", previewCountInputHandler);
+        previewCountEl.addEventListener("change", previewCountCommitHandler);
     }
 
     // ─── API 설정 ───
@@ -1851,6 +1914,7 @@ export function bindPopupEvents() {
 
     // ─── v1.8.1: 텍스트에어리어 확대 팝업 ───
     let _expandTargetId = null;
+    let _expandReturnFocus = null;
 
     function openTextareaExpandPopup(targetId) {
         const popup = document.getElementById("nps-textarea-expand-popup");
@@ -1859,6 +1923,7 @@ export function bindPopupEvents() {
         const titleEl = document.getElementById("nps-textarea-expand-title");
         if (!popup || !expandInput || !sourceEl) return;
 
+        _expandReturnFocus = document.activeElement;
         _expandTargetId = targetId;
         expandInput.value = sourceEl.value;
         expandInput.placeholder = sourceEl.placeholder;
@@ -1885,12 +1950,13 @@ export function bindPopupEvents() {
             const sourceEl = document.getElementById(_expandTargetId);
             if (expandInput && sourceEl) {
                 sourceEl.value = expandInput.value;
-                sourceEl.dispatchEvent(new Event("input", { bubbles: true }));
+                sourceEl.dispatchEvent(new Event("change", { bubbles: true }));
             }
         }
 
         popup.classList.remove("active");
         _expandTargetId = null;
+        if(_expandReturnFocus?.isConnected)_expandReturnFocus.focus();
     }
 
     document.querySelectorAll(".nps-textarea-expand-btn").forEach(function (btn) {
@@ -1945,17 +2011,7 @@ export function bindPopupEvents() {
                     if (typeof imported !== "object" || imported === null) throw new Error("Invalid format");
                     // 안전하게 병합: 기존 설정 기반으로 가져온 값 덮어쓰기
                     const current = extension_settings[extensionName];
-                    for (let key in imported) {
-                        if (Object.prototype.hasOwnProperty.call(imported, key) &&
-                            Object.prototype.hasOwnProperty.call(defaultSettings, key)) {
-                            const value = imported[key];
-                            const baseline = defaultSettings[key];
-                            if (Array.isArray(baseline)) { if (Array.isArray(value)) current[key] = value; }
-                            else if (baseline && typeof baseline === "object") {
-                                if (value && typeof value === "object" && !Array.isArray(value)) current[key] = { ...baseline, ...current[key], ...value };
-                            } else if (typeof value === typeof baseline) current[key] = value;
-                        }
-                    }
+                    extension_settings[extensionName] = mergeSettings(current, imported);
                     saveSettings();
                     updatePopupUIFromSettings();
                     toastr.success("설정을 불러왔습니다.");
